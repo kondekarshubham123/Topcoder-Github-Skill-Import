@@ -194,7 +194,7 @@ GitHub User
 Results with Evidence + Rationale
 ```
 
-**See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed Mermaid diagrams including:**
+**See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed Mermaid diagrams including:**
 - Complete data flow sequence diagrams
 - Component architecture graphs
 - Skill index structure visualization
@@ -210,7 +210,7 @@ Results with Evidence + Rationale
 - **Keyword match**: 60% confidence (skill keywords contain "javascript")
 - **Frequency boost**: +2% per repository (max +20%)
 - **Evidence**: Top 5 repositories using each language
-- See [DESIGN_FLOW.md](DESIGN_FLOW.md) Section 4 for algorithm flowchart
+- See [DESIGN_FLOW.md](docs/DESIGN_FLOW.md) Section 4 for algorithm flowchart
 
 **2. Repository Matcher** (Fast, Metadata-focused)
 - Analyzes repo names, descriptions, and topics
@@ -245,7 +245,7 @@ Results with Evidence + Rationale
 - **Weighted confidence**: `Σ(confidence × weight) / Σ(weights_used)`
 - Merges evidence from all sources
 - Deduplicates and creates comprehensive rationale
-- See [DESIGN_FLOW.md](DESIGN_FLOW.md) Section 5 for weighted calculation diagram
+- See [DESIGN_FLOW.md](docs/DESIGN_FLOW.md) Section 5 for weighted calculation diagram
 
 **6. All Matchers** (Maximum Coverage)
 - Runs matchers sequentially (not parallel)
@@ -276,11 +276,11 @@ The system uses an in-memory index strategy for optimal performance:
 - `byKeyword`: Token-based search (e.g., "front", "web", "database")
 - `all`: Complete skill array for iteration
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) Section 2 for detailed index diagrams.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) Section 2 for detailed index diagrams.
 
 ### Adding Custom Matchers
 
-The system is **plug-and-play**. See [PLUGIN_GUIDE.md](PLUGIN_GUIDE.md) for step-by-step instructions.
+The system is **plug-and-play**. See [PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md) for step-by-step instructions.
 
 Quick example:
 
@@ -316,7 +316,7 @@ Done! No other changes needed.
 
 Comprehensive documentation with visual diagrams:
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed system architecture
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Detailed system architecture
   - High-level architecture diagrams
   - Data flow sequence diagrams  
   - Component architecture graphs
@@ -325,7 +325,7 @@ Comprehensive documentation with visual diagrams:
   - Performance optimization strategies
   - Error handling flows
   
-- **[DESIGN_FLOW.md](DESIGN_FLOW.md)** - Visual flows and decision trees
+- **[DESIGN_FLOW.md](docs/DESIGN_FLOW.md)** - Visual flows and decision trees
   - Complete data flow from CLI to output
   - Matcher selection decision tree
   - Algorithm flowcharts (Language, Hybrid, etc.)
@@ -334,13 +334,13 @@ Comprehensive documentation with visual diagrams:
   - Rate limiting strategy
   - Memory & performance analysis
   
-- **[PLUGIN_GUIDE.md](PLUGIN_GUIDE.md)** - Step-by-step guide to add custom matchers
+- **[PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md)** - Step-by-step guide to add custom matchers
   
-- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Command cheatsheet and quick reference
+- **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** - Command cheatsheet and quick reference
   
-- **[CLI_USAGE.md](CLI_USAGE.md)** - Comprehensive CLI documentation
+- **[CLI_USAGE.md](docs/CLI_USAGE.md)** - Comprehensive CLI documentation
   
-- **[IMPLEMENTATION.md](IMPLEMENTATION.md)** - Implementation details and code structure
+- **[IMPLEMENTATION.md](docs/IMPLEMENTATION.md)** - Implementation details and code structure
 
 > **Note**: All Mermaid diagrams render correctly on GitHub and support rich visualizations.
 
@@ -426,7 +426,7 @@ Every skill recommendation includes verifiable evidence:
 
 Contributions welcome! Here's how:
 
-1. **Add a new matcher**: See [PLUGIN_GUIDE.md](PLUGIN_GUIDE.md) for step-by-step guide
+1. **Add a new matcher**: See [PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md) for step-by-step guide
 2. **Improve algorithms**: Submit PRs with enhanced confidence scoring formulas
 3. **Documentation**: Help improve docs, add examples, fix diagrams
 4. **Bug fixes**: Report issues or submit fixes via GitHub Issues
