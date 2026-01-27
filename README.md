@@ -240,7 +240,7 @@ Results with Evidence
 
 ### Adding Custom Matchers
 
-The system is **plug-and-play**. See [PLUGIN_GUIDE.md](PLUGIN_GUIDE.md) for step-by-step instructions.
+The system is **plug-and-play**. See [PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md) for step-by-step instructions.
 
 Quick example:
 
@@ -274,12 +274,12 @@ Done! No other changes needed.
 
 ## 📚 Documentation
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed system architecture with Mermaid diagrams
-- **[DESIGN_FLOW.md](DESIGN_FLOW.md)** - Visual flows and decision trees
-- **[PLUGIN_GUIDE.md](PLUGIN_GUIDE.md)** - Step-by-step guide to add custom matchers
-- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Command cheatsheet and quick reference
-- **[CLI_USAGE.md](CLI_USAGE.md)** - Comprehensive CLI documentation
-- **[IMPLEMENTATION.md](IMPLEMENTATION.md)** - Implementation details
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Detailed system architecture with Mermaid diagrams
+- **[DESIGN_FLOW.md](docs/DESIGN_FLOW.md)** - Visual flows and decision trees
+- **[PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md)** - Step-by-step guide to add custom matchers
+- **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** - Command cheatsheet and quick reference
+- **[CLI_USAGE.md](docs/CLI_USAGE.md)** - Comprehensive CLI documentation
+- **[IMPLEMENTATION.md](docs/IMPLEMENTATION.md)** - Implementation details
 
 ## 🔧 API Reference
 
@@ -363,7 +363,7 @@ Every skill recommendation includes verifiable evidence:
 
 Contributions welcome! Here's how:
 
-1. **Add a new matcher**: See [PLUGIN_GUIDE.md](PLUGIN_GUIDE.md)
+1. **Add a new matcher**: See [PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md)
 2. **Improve algorithms**: Submit PRs with enhanced confidence scoring
 3. **Documentation**: Help improve docs and examples
 4. **Bug fixes**: Report issues or submit fixes
