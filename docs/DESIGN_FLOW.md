@@ -109,7 +109,7 @@ graph TD
     UseHybrid --> Execute
     UseAll --> Execute
     
-    Execute --> Return[Return SkillMatch[]]
+    Execute --> Return[Return SkillMatch Array]
     
     style Default fill:#c8e6c9
     style UseHybrid fill:#c8e6c9
@@ -144,7 +144,7 @@ flowchart TD
     
     BoostFreq --> CollectEvidence[Collect Evidence:<br/>Top 5 repos using language]
     
-    CollectEvidence --> CreateMatch[Create SkillMatch with:<br/>- skillId<br/>- skillName<br/>- confidence<br/>- evidence[]<br/>- rationale<br/>- sources]
+    CollectEvidence --> CreateMatch[Create SkillMatch with:<br/>- skillId<br/>- skillName<br/>- confidence<br/>- evidence array<br/>- rationale<br/>- sources]
     
     CreateMatch --> CheckDupe{Already matched<br/>this skill?}
     CheckDupe --> |Yes, lower conf| Skip[Skip]
@@ -156,7 +156,7 @@ flowchart TD
     Add --> LoopLang
     
     LoopLang --> |Done| SortResults[Sort by confidence DESC]
-    SortResults --> Return([Return SkillMatch[]])
+    SortResults --> Return([Return SkillMatch array])
     
     style Start fill:#e1f5ff
     style Conf95 fill:#c8e6c9
@@ -201,7 +201,7 @@ flowchart TD
     
     LoopSkill --> |Done| SortMerged[Sort by weighted confidence]
     
-    SortMerged --> Return([Return SkillMatch[]])
+    SortMerged --> Return([Return SkillMatch array])
     
     style Start fill:#e1f5ff
     style RunParallel fill:#fff4e1
@@ -300,7 +300,7 @@ flowchart TD
     
     FileEv --> F1[type: 'file'<br/>source: file path<br/>details: extension/changes]
     
-    L1 --> Collect[Collect into Evidence[]]
+    L1 --> Collect[Collect into Evidence Array]
     R1 --> Collect
     C1 --> Collect
     P1 --> Collect
@@ -403,7 +403,7 @@ graph TD
     Contract --> Match[match method]
     
     Match --> Input[Input: GithubProfile,<br/>SkillIndex]
-    Match --> Output[Output: SkillMatch[]]
+    Match --> Output[Output: SkillMatch Array]
     
     Interface --> Impl1[LanguageMatcher]
     Interface --> Impl2[RepositoryMatcher]
