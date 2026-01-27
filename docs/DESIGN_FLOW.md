@@ -5,22 +5,39 @@ This document provides visual representations of the system's design, data flow,
 ## 1. System Overview
 
 ```mermaid
-C4Context
-    title System Context Diagram - Topcoder Skills Recommender
+flowchart LR
+    User([👤 Developer]) -->|npm start| CLI[📦 Skills Recommender CLI]
+    CLI -->|OAuth + Fetch Data| GitHub[(🔗 GitHub API)]
+    CLI -->|Download Skills| Topcoder[(🎯 Topcoder API)]
+    CLI -->|📊 Results| User
     
-    Person(user, "Developer", "GitHub user seeking skill recommendations")
-    System(cli, "Skills Recommender CLI", "Analyzes GitHub profile and recommends Topcoder skills")
+    GitHub -.->|Profile, Repos, Commits, PRs| CLI
+    Topcoder -.->|10,000+ Skills| CLI
     
-    System_Ext(github, "GitHub API", "Source of developer activity data")
-    System_Ext(topcoder, "Topcoder API", "Source of standardized skills")
-    
-    Rel(user, cli, "Runs CLI with username")
-    Rel(cli, github, "Fetches profile, repos, commits, PRs")
-    Rel(cli, topcoder, "Fetches skill database (once)")
-    Rel(cli, user, "Returns skill recommendations with evidence")
+    style User fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+    style CLI fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+    style GitHub fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style Topcoder fill:#fce4ec,stroke:#c2185b,stroke-width:2px
 ```
 
-## 2. Complete Data Flow
+### 📋 Process Flow
+
+| Step | Action | Details |
+|------|--------|---------|
+| **1️⃣ Launch** | User runs `npm start` | Single command execution |
+| **2️⃣ Auth** | GitHub OAuth authentication | Device flow, token saved to `.github-token` |
+| **3️⃣ Collect** | Fetch GitHub data | Repos, commits, PRs, languages (paginated) |
+| **4️⃣ Download** | Get Topcoder skills | ~10,000 skills in one API call |
+| **5️⃣ Index** | Build search index | Creates 3 maps: byName, byLowerName, byKeyword |
+| **6️⃣ Match** | Run algorithm(s) | 100% local matching, zero additional API calls |
+| **7️⃣ Display** | Show results | Ranked skills with confidence scores + evidence |
+
+### 🎯 Key Benefits
+
+- **⚡ Fast**: 2-5 seconds total (vs 30-60s with API-based matching)
+- **🔒 Secure**: OAuth token stored locally, reused for future runs
+- **📊 Evidence-Based**: Every skill includes verifiable GitHub links
+- **🔄 Flexible**: 6+ matching algorithms to choose from
 
 ```mermaid
 flowchart TB
