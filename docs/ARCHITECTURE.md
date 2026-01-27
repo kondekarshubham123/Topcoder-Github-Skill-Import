@@ -118,10 +118,10 @@ graph LR
 
 ```mermaid
 graph TD
-    A[SkillIndex] --> B[byName: Map<string, Skill>]
-    A --> C[byLowerName: Map<string, Skill[]>]
-    A --> D[byKeyword: Map<string, Skill[]>]
-    A --> E[all: Skill[]]
+    A[SkillIndex] --> B["byName: Map&lt;string, Skill&gt;"]
+    A --> C["byLowerName: Map&lt;string, Skill&gt;"]
+    A --> D["byKeyword: Map&lt;string, Skill&gt;"]
+    A --> E["all: Skill array"]
     
     B --> B1["'React' → {id, name, desc}"]
     C --> C1["'react' → [{...}]"]
