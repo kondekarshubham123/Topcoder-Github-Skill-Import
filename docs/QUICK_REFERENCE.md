@@ -46,8 +46,18 @@ node dist/cli.js --output-file results.json  # Save to file
 
 ### AI Providers
 ```bash
+# OpenAI (cloud, most accurate)
 node dist/cli.js --ai-provider openai --openai-key sk-...
-node dist/cli.js --ai-provider ollama        # (when implemented)
+
+# Google Gemini (cloud)
+node dist/cli.js --ai-provider gemini --gemini-key YOUR_KEY
+
+# Ollama (local, privacy-focused)
+ollama serve  # Start server first
+node dist/cli.js --ai-provider ollama --ollama-model llama3.2
+
+# No AI (keyword matching)
+node dist/cli.js --matcher semantic
 ```
 
 ## Flag Reference
@@ -59,8 +69,11 @@ node dist/cli.js --ai-provider ollama        # (when implemented)
 | `--max-commits` | `-c` | number | 30 |
 | `--max-skills` | `-s` | number | 15 |
 | `--deep-analysis` | - | boolean | true |
-| `--ai-provider` | - | openai, ollama, none | none |
-| `--openai-key` | - | string | env var |
+| `--ai-provider` | - | openai, gemini, ollama | none |
+| `--openai-key` | - | string | OPENAI_API_KEY |
+| `--gemini-key` | - | string | GEMINI_API_KEY |
+| `--ollama-url` | - | URL | http://localhost:11434 |
+| `--ollama-model` | - | string | llama3.2 |
 | `--verbose` | `-v` | boolean | false |
 | `--output` | `-o` | text, json | text |
 | `--output-file` | - | path | - |
@@ -84,9 +97,20 @@ node dist/cli.js --matcher hybrid --max-repos 100 --max-commits 50 --verbose
 node dist/cli.js --output json --output-file analysis.json
 ```
 
-**AI-Powered**
+**AI-Powered (Cloud)**
 ```bash
+# OpenAI
 node dist/cli.js --matcher semantic --ai-provider openai --openai-key $OPENAI_API_KEY
+
+# Google Gemini
+node dist/cli.js --matcher semantic --ai-provider gemini --gemini-key $GEMINI_API_KEY
+```
+
+**AI-Powered (Local)**
+```bash
+# Ollama (100% private)
+ollama serve
+node dist/cli.js --matcher semantic --ai-provider ollama
 ```
 
 ## Architecture
@@ -97,7 +121,9 @@ ISkillsMatcher ← FuzzyMatcher
               ← HybridMatcher
               ← [Your Custom Matcher]
 
-ISemanticProvider ← OpenAIProvider
+ISemanticProvider ← OpenAIProvider (GPT-4o-mini + embeddings)
+                  ← GeminiProvider (Gemini Pro + embeddings)
+                  ← OllamaProvider (llama3.2 local + embeddings)
                   ← OllamaProvider (future)
                   ← [Your Custom Provider]
 ```

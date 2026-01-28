@@ -15,10 +15,12 @@ src/
 └── matchers/
     ├── ISkillsMatcher.ts           # Matcher interface (plug-and-play)
     ├── FuzzyMatcher.ts             # Language-based fuzzy matching
-    ├── SemanticMatcher.ts          # AI/semantic matching
+    ├── SemanticMatcher.ts          # AI/semantic matching with LLM support
     ├── HybridMatcher.ts            # Combined weighted matching
     └── providers/
-        └── OpenAIProvider.ts       # OpenAI semantic provider
+        ├── OpenAIProvider.ts       # OpenAI GPT-4o-mini + embeddings
+        ├── GeminiProvider.ts       # Google Gemini Pro + embeddings
+        └── OllamaProvider.ts       # Local Ollama LLM + embeddings
 ```
 
 ## Key Features Implemented
@@ -78,25 +80,42 @@ if (currentRateLimit.remaining < 10) {
 }
 ```
 
-### 4. ✅ Provider-Agnostic AI
+### 4. ✅ Provider-Agnostic AI with GenAI Support
 
 **Interface:** `ISemanticProvider`
 
 ```typescript
 interface ISemanticProvider {
   name: string;
+  supportsLLM: boolean;
   computeSimilarity(text1: string, text2: string): Promise<number>;
+  matchSkillsWithLLM?(profile: string, skills: string[]): Promise<Array<{skill: string; confidence: number; reasoning: string}>>;
 }
 ```
 
-**Current Implementation:**
-- OpenAI (text-embedding-3-small with cosine similarity)
+**Dual-Mode Matching:**
+1. **LLM-Based Reasoning** (Primary) - Uses GenAI to understand context
+2. **Embedding Similarity** (Fallback) - Uses vector embeddings
 
-**Easy to add:**
-- Ollama
-- Hugging Face
-- Custom embeddings
-- Any vector similarity service
+**Current Implementations:**
+
+| Provider | LLM Model | Embedding Model | Local | Cost |
+|----------|-----------|-----------------|-------|------|
+| **OpenAI** | GPT-4o-mini | text-embedding-3-small | ❌ | $0.15-$0.20 |
+| **Gemini** | Gemini Pro | embedding-001 | ❌ | $0.10-$0.15 |
+| **Ollama** | llama3.2 | nomic-embed-text | ✅ | Free |
+
+**Features:**
+- Caching for both LLM and embedding results
+- Automatic fallback: LLM → Embeddings → Keywords
+- Batch processing for efficiency
+- Privacy-focused local option (Ollama)
+
+**Easy to extend:**
+- Claude (Anthropic)
+- Mistral AI
+- Hugging Face models
+- Custom fine-tuned models
 
 ### 5. ✅ Comprehensive CLI Flags
 
@@ -107,8 +126,11 @@ interface ISemanticProvider {
 | `-c, --max-commits` | Max commits per repo | 30 |
 | `-s, --max-skills` | Max skills to display | 15 |
 | `--no-deep-analysis` | Skip commit/PR analysis | false |
-| `--ai-provider` | AI provider: openai, ollama, none | none |
-| `--openai-key` | OpenAI API key | env var |
+| `--ai-provider` | AI provider: openai, gemini, ollama, none | none |
+| `--openai-key` | OpenAI API key | OPENAI_API_KEY env |
+| `--gemini-key` | Google Gemini API key | GEMINI_API_KEY env |
+| `--ollama-url` | Ollama server URL | http://localhost:11434 |
+| `--ollama-model` | Ollama model name | llama3.2 |
 | `-v, --verbose` | Verbose logging | false |
 | `-o, --output` | Output format: text, json | text |
 | `--output-file` | Save results to file | - |
@@ -351,11 +373,106 @@ node dist/cli.js --ai-provider ollama --matcher semantic
 - Standard analysis (50 repos, deep): ~3-5 minutes
 - Full analysis (100 repos, deep): ~5-10 minutes
 
+**With AI Providers:**
+- OpenAI (cloud): +2-5 seconds per analysis
+- Gemini (cloud): +2-4 seconds per analysis  
+- Ollama (local): +5-10 seconds (first run), +1-2 seconds (cached)
+
 **API calls:**
 - Base: 1 (user) + 1 (repos)
 - Per repo: 3 (languages, topics, contributions)
 - Per deep repo: +2 (commits, PRs) + commits analyzed (10 max)
 - Total: ~150-300 calls for standard analysis
+
+---
+
+## AI Provider Implementation Guide
+
+### Adding a New AI Provider
+
+Follow these steps to add a custom AI provider:
+
+#### 1. Create Provider Class
+
+```typescript
+// src/matchers/providers/MyProvider.ts
+import { ISemanticProvider } from '../SemanticMatcher';
+
+export class MyProvider implements ISemanticProvider {
+  name = 'My Custom Provider';
+  supportsLLM = true; // or false if only embeddings
+  
+  private cache = new Map<string, number>();
+  private llmCache = new Map<string, any>();
+  
+  constructor(private apiKey: string, private baseUrl: string) {}
+  
+  // Required: Embedding-based similarity
+  async computeSimilarity(text1: string, text2: string): Promise<number> {
+    const cacheKey = `${text1}:${text2}`;
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // Generate embeddings and compute similarity
+    const embeddings = await this.generateEmbeddings([text1, text2]);
+    const similarity = this.cosineSimilarity(embeddings[0], embeddings[1]);
+    
+    this.cache.set(cacheKey, similarity);
+    return similarity;
+  }
+  
+  // Optional: LLM-based reasoning (better accuracy)
+  async matchSkillsWithLLM(
+    profileDescription: string,
+    skillNames: string[]
+  ): Promise<Array<{ skill: string; confidence: number; reasoning: string }>> {
+    // Build prompt, call LLM, parse results
+    const prompt = `Analyze profile and match skills: ${profileDescription}
+                    Skills: ${skillNames.join(', ')}`;
+    const response = await this.callLLM(prompt);
+    return JSON.parse(response);
+  }
+  
+  // Helper methods: generateEmbeddings, callLLM, cosineSimilarity
+}
+```
+
+#### 2. Register in CLI
+
+```typescript
+// src/cli.ts
+import { MyProvider } from './matchers/providers/MyProvider';
+
+// Add CLI option
+program.option('--myprovider-key <key>', 'My Provider API key');
+
+// Initialize provider
+if (providerName === 'myprovider') {
+  const apiKey = options.myproviderKey || process.env.MYPROVIDER_API_KEY;
+  if (apiKey) {
+    aiProvider = new MyProvider(apiKey, 'https://api.myprovider.com');
+  }
+}
+```
+
+#### 3. Update Documentation
+
+Add provider details to:
+- `docs/AI_PROVIDER_GUIDE.md` - Full usage guide
+- `docs/CLI_USAGE.md` - CLI examples
+- `docs/QUICK_REFERENCE.md` - Quick reference
+- `README.md` - Main documentation
+
+### Provider Best Practices
+
+1. **Caching**: Always cache LLM and embedding results
+2. **Batching**: Process multiple items per API call
+3. **Error Handling**: Graceful fallback on failures
+4. **Timeouts**: Set reasonable limits (10-60s)
+5. **Privacy**: Document data handling clearly
+6. **Cost**: Provide pricing estimates
+7. **Fallback**: Support both LLM and embeddings
 
 ## Future Enhancements
 

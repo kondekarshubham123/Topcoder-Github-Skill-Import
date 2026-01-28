@@ -19,14 +19,23 @@ graph TB
     F --> G3[Commit Matcher]
     F --> G4[Pull Request Matcher]
     F --> G5[Hybrid Matcher]
-    F --> G6[Fuzzy/Semantic Matcher]
-    
+    F --> G6[Semantic Matcher]
+
+    G6 --> AI{AI Provider?}
+    AI --> AI1[OpenAI Provider<br/>GPT-4o + Embeddings]
+    AI --> AI2[Gemini Provider<br/>Gemini Pro + Embeddings]
+    AI --> AI3[Ollama Provider<br/>Local LLM]
+    AI --> AI4[No Provider<br/>Keywords Matching]    
+
     G1 --> H[Results Aggregator]
     G2 --> H
     G3 --> H
     G4 --> H
     G5 --> H
-    G6 --> H
+    AI1 --> H
+    AI2 --> H
+    AI3 --> H
+    AI4 --> H
     
     H --> I[Confidence Filtering]
     I --> J[Output Formatter]
@@ -114,35 +123,73 @@ graph LR
     style D fill:#ffcc99
 ```
 
-### 2. Skill Index Structure
+### 2. AI Provider Architecture
 
 ```mermaid
-graph TD
-    A[SkillIndex] --> B["byName: Map&lt;string, Skill&gt;"]
-    A --> C["byLowerName: Map&lt;string, Skill&gt;"]
-    A --> D["byKeyword: Map&lt;string, Skill&gt;"]
-    A --> E["all: Skill array"]
+graph TB
+    A[CLI with --ai-provider flag] --> B{Provider Selection}
     
-    B --> B1["'React' → {id, name, desc}"]
-    C --> C1["'react' → [{...}]"]
-    C --> C2["'javascript' → [{...}]"]
-    D --> D1["'front' → [React, Frontend, ...]"]
-    D --> D2["'web' → [React, Vue, ...]"]
+    B --> C[OpenAI Provider]
+    B --> D[Gemini Provider]
+    B --> E[Ollama Provider]
+    B --> F[No Provider]
     
-    style A fill:#ffeb99
-    style B fill:#99d6ff
-    style C fill:#99d6ff
-    style D fill:#99d6ff
-    style E fill:#99d6ff
+    C --> C1[API Key Required]
+    D --> D1[API Key Required]
+    E --> E1[Local Server Check]
+    F --> F1[Keyword Matching]
+    
+    C1 --> G[ISemanticProvider Interface]
+    D1 --> G
+    E1 --> G
+    
+    G --> H{Matching Mode}
+    H --> H1[LLM-Based Reasoning<br/>Primary Mode]
+    H --> H2[Embedding Similarity<br/>Fallback Mode]
+    
+    H1 --> I1[OpenAI: GPT-4o-mini]
+    H1 --> I2[Gemini: Gemini Pro]
+    H1 --> I3[Ollama: llama3.2]
+    
+    H2 --> J1[OpenAI: text-embedding-3-small]
+    H2 --> J2[Gemini: embedding-001]
+    H2 --> J3[Ollama: nomic-embed-text]
+    
+    I1 --> K[GenAI Reasoning Results]
+    I2 --> K
+    I3 --> K
+    J1 --> K
+    J2 --> K
+    J3 --> K
+    F1 --> K
+    
+    K --> L[Skill Matches with Confidence]
+    
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style H fill:#f0ffe1
+    style H1 fill:#c8e6c9
+    style H2 fill:#ffe1f5
+    style K fill:#ffeb99
+    style L fill:#c8e6c9
 ```
 
-**Index Building Process:**
-1. Exact name: `"React"` → Direct O(1) lookup
-2. Case-insensitive: `"react"` → Array of matches
-3. Keywords: Split skill name and description into words → Map word to skills
-4. Enables multi-strategy matching without repeated API calls
+**AI Provider Features:**
 
-### 3. Matcher Interface
+| Provider | Type | LLM Model | Embedding Model | Privacy | Cost |
+|----------|------|-----------|-----------------|---------|------|
+| **OpenAI** | Cloud | GPT-4o-mini | text-embedding-3-small | ❌ Cloud | $0.15-$0.20 per analysis |
+| **Gemini** | Cloud | Gemini Pro | embedding-001 | ❌ Cloud | $0.10-$0.15 per analysis |
+| **Ollama** | Local | llama3.2 | nomic-embed-text | ✅ 100% Local | Free |
+| **None** | N/A | N/A | N/A | ✅ No AI | Free |
+
+**Dual-Mode Matching:**
+1. **LLM-Based Reasoning (Primary)** - Uses GenAI to understand context and infer skills
+2. **Embedding Similarity (Fallback)** - Uses vector embeddings for semantic matching
+3. **Keyword Matching (Last Resort)** - Basic text matching when AI unavailable
+
+### 3. Skill Index Structure
+
 
 ```mermaid
 classDiagram
@@ -569,3 +616,235 @@ npm start -- --username octocat --matcher all --top-n 20
 ## Extensibility
 
 The architecture supports easy addition of new matchers - see [PLUGIN_GUIDE.md](PLUGIN_GUIDE.md) for step-by-step instructions.
+
+
+## AI Provider Deep Dive
+
+### LLM-Based vs Embedding-Based Matching
+
+```mermaid
+graph LR
+    A[GitHub Profile Data] --> B{Matching Strategy}
+    
+    B --> C[LLM-Based Reasoning<br/>Primary Mode]
+    B --> D[Embedding Similarity<br/>Fallback Mode]
+    B --> E[Keyword Matching<br/>Last Resort]
+    
+    C --> C1[GPT-4o-mini<br/>Contextual understanding]
+    C --> C2[Gemini Pro<br/>Google's reasoning]
+    C --> C3[llama3.2<br/>Local inference]
+    
+    D --> D1[text-embedding-3-small<br/>1536 dimensions]
+    D --> D2[embedding-001<br/>768 dimensions]
+    D --> D3[nomic-embed-text<br/>Local vectors]
+    
+    E --> E1[Simple text matching<br/>No AI required]
+    
+    C1 --> F[Skill Recommendations]
+    C2 --> F
+    C3 --> F
+    D1 --> F
+    D2 --> F
+    D3 --> F
+    E1 --> F
+    
+    F --> G[Confidence Scores<br/>Evidence Links<br/>Reasoning]
+    
+    style C fill:#c8e6c9
+    style D fill:#fff4e1
+    style E fill:#ffcdd2
+    style F fill:#e1f5ff
+```
+
+### Provider Implementation Details
+
+#### OpenAI Provider
+```typescript
+class OpenAIProvider implements ISemanticProvider {
+  name = 'OpenAI';
+  supportsLLM = true;
+  
+  // LLM-based reasoning (primary)
+  async matchSkillsWithLLM(profile: string, skills: string[]) {
+    const prompt = `Analyze this GitHub profile and match to skills...`;
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.3,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    // Returns: [{skill, confidence, reasoning}]
+  }
+  
+  // Embedding fallback
+  async computeSimilarity(text1: string, text2: string) {
+    const embeddings = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: [text1, text2]
+    });
+    return cosineSimilarity(embeddings[0], embeddings[1]);
+  }
+}
+```
+
+**Costs (as of 2026):**
+- GPT-4o-mini: $0.15 per 1M input tokens, $0.60 per 1M output tokens
+- text-embedding-3-small: $0.02 per 1M tokens
+- **Typical analysis**: ~$0.15-$0.20 per user
+
+#### Gemini Provider
+```typescript
+class GeminiProvider implements ISemanticProvider {
+  name = 'Google Gemini';
+  supportsLLM = true;
+  
+  // LLM-based reasoning (primary)
+  async matchSkillsWithLLM(profile: string, skills: string[]) {
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+    // Parse structured response
+  }
+  
+  // Embedding fallback
+  async computeSimilarity(text1: string, text2: string) {
+    const embeddings = await generateEmbeddings('embedding-001', [text1, text2]);
+    return cosineSimilarity(embeddings[0], embeddings[1]);
+  }
+}
+```
+
+**Costs (as of 2026):**
+- Gemini Pro: $0.075 per 1M input tokens, $0.30 per 1M output tokens
+- embedding-001: Free up to quota
+- **Typical analysis**: ~$0.10-$0.15 per user
+
+#### Ollama Provider (Local)
+```typescript
+class OllamaProvider implements ISemanticProvider {
+  name = 'Ollama (Local)';
+  supportsLLM = true;
+  
+  // Check availability
+  async isAvailable(): Promise<boolean> {
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/tags`, { timeout: 5000 });
+      return response.status === 200;
+    } catch {
+      return false;
+    }
+  }
+  
+  // LLM-based reasoning (primary)
+  async matchSkillsWithLLM(profile: string, skills: string[]) {
+    const response = await axios.post(`${this.baseUrl}/api/generate`, {
+      model: this.model, // llama3.2
+      prompt: `Analyze this profile and match skills...`,
+      stream: false
+    }, { timeout: 60000 });
+    // Parse response
+  }
+  
+  // Embedding fallback
+  async computeSimilarity(text1: string, text2: string) {
+    const embeddings = await this.generateEmbeddings([text1, text2]);
+    return cosineSimilarity(embeddings[0], embeddings[1]);
+  }
+}
+```
+
+**Benefits:**
+- ✅ 100% local - no data leaves your machine
+- ✅ Free - no API costs
+- ✅ Privacy-focused
+- ✅ No internet required (after model download)
+- ✅ Customizable models
+
+### Caching Strategy
+
+```mermaid
+flowchart TD
+    A[Skill Matching Request] --> B{Check LLM Cache}
+    
+    B --> |Hit| C[Return Cached LLM Results<br/>$0 cost]
+    B --> |Miss| D{Provider supports LLM?}
+    
+    D --> |Yes| E[Call LLM API<br/>$$$ cost]
+    D --> |No| F{Check Embedding Cache}
+    
+    E --> G[Cache LLM Results<br/>TTL: 24 hours]
+    G --> H[Return Results]
+    
+    F --> |Hit| I[Return Cached Embeddings<br/>$ cost saved]
+    F --> |Miss| J[Compute Embeddings<br/>$ cost]
+    
+    J --> K[Cache Embeddings<br/>TTL: 7 days]
+    K --> H
+    I --> H
+    C --> H
+    
+    style C fill:#c8e6c9
+    style E fill:#ffcdd2
+    style G fill:#fff4e1
+    style H fill:#e1f5ff
+```
+
+**Cache Keys:**
+- LLM: `llm:${provider}:${profileHash}:${skillsHash}`
+- Embeddings: `embed:${provider}:${textHash}`
+
+**TTL Strategy:**
+- LLM results: 24 hours (profiles change frequently)
+- Embeddings: 7 days (skill descriptions stable)
+
+### Performance Comparison
+
+| Provider | Cold Start | Cached | Accuracy | Privacy | Cost |
+|----------|-----------|--------|----------|---------|------|
+| **OpenAI** | 3-5s | <1s | ⭐⭐⭐⭐⭐ | ❌ Cloud | $0.20 |
+| **Gemini** | 2-4s | <1s | ⭐⭐⭐⭐ | ❌ Cloud | $0.15 |
+| **Ollama** | 5-10s | <1s | ⭐⭐⭐⭐ | ✅ Local | Free |
+| **Keyword** | <1s | <1s | ⭐⭐⭐ | ✅ Local | Free |
+
+### Batch Processing
+
+```mermaid
+sequenceDiagram
+    participant CLI
+    participant Matcher
+    participant Provider
+    participant Cache
+    participant API
+    
+    CLI->>Matcher: Match 50 skills
+    Matcher->>Cache: Check cached results
+    Cache-->>Matcher: 30 hits, 20 misses
+    
+    Note over Matcher,Provider: Batch processing (10 skills/batch)
+    
+    Matcher->>Provider: Batch 1 (10 skills)
+    Provider->>API: Single API call
+    API-->>Provider: 10 embeddings
+    Provider->>Cache: Store results
+    Provider-->>Matcher: Return 10 matches
+    
+    Matcher->>Provider: Batch 2 (10 skills)
+    Provider->>API: Single API call
+    API-->>Provider: 10 embeddings
+    Provider->>Cache: Store results
+    Provider-->>Matcher: Return 10 matches
+    
+    Matcher->>Matcher: Combine all results
+    Matcher-->>CLI: 50 skill matches
+```
+
+**Optimization:**
+- ✅ Batch embeddings (10 skills per API call)
+- ✅ Cache aggressively
+- ✅ Parallel processing where possible
+- ✅ Fallback gracefully (LLM → Embedding → Keyword)

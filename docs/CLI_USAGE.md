@@ -22,20 +22,35 @@ node dist/cli.js --matcher fuzzy
 - No AI dependencies
 
 ### Semantic Matcher
-Uses Topcoder's semantic search API or AI providers (OpenAI, Ollama) for intelligent matching.
+Uses AI providers (OpenAI, Gemini, Ollama) for intelligent GenAI-powered matching.
 
 ```bash
-# Using Topcoder semantic API (default)
-node dist/cli.js --matcher semantic
-
-# Using OpenAI
+# Using OpenAI (cloud, most accurate)
 node dist/cli.js --matcher semantic --ai-provider openai --openai-key sk-...
+
+# Using Google Gemini (cloud)
+node dist/cli.js --matcher semantic --ai-provider gemini --gemini-key YOUR_KEY
+
+# Using Ollama (local, privacy-focused)
+node dist/cli.js --matcher semantic --ai-provider ollama
+
+# Without AI provider (keyword matching)
+node dist/cli.js --matcher semantic
 ```
 
 **When to use:**
-- Better understanding of context
+- GenAI reasoning for better context understanding
 - Match based on project descriptions and topics
-- AI-powered similarity
+- AI-powered LLM analysis
+
+**AI Provider Comparison:**
+
+| Provider | Accuracy | Speed | Cost | Privacy |
+|----------|----------|-------|------|--------|
+| OpenAI | ⭐⭐⭐⭐⭐ | Fast | ~$0.20 | Cloud |
+| Gemini | ⭐⭐⭐⭐ | Fast | ~$0.15 | Cloud |
+| Ollama | ⭐⭐⭐⭐ | Medium | Free | 100% Local |
+| None | ⭐⭐⭐ | Fast | Free | N/A |
 
 ### Hybrid Matcher (Recommended)
 Combines fuzzy and semantic matching with weighted scoring for best results.
@@ -48,6 +63,88 @@ node dist/cli.js --matcher hybrid
 - Most accurate results
 - Combines multiple signals
 - Default and recommended option
+
+## AI Provider Configuration
+
+### OpenAI Setup
+
+```bash
+# Set API key as environment variable
+export OPENAI_API_KEY=sk-...
+node dist/cli.js --matcher semantic --ai-provider openai
+
+# Or pass directly
+node dist/cli.js --matcher semantic --ai-provider openai --openai-key sk-...
+```
+
+**Features:**
+- LLM: GPT-4o-mini for reasoning
+- Embeddings: text-embedding-3-small
+- Dual-mode: LLM + embedding fallback
+- Cost: ~$0.15-$0.20 per analysis
+
+### Google Gemini Setup
+
+```bash
+# Set API key as environment variable
+export GEMINI_API_KEY=your_key
+node dist/cli.js --matcher semantic --ai-provider gemini
+
+# Or pass directly
+node dist/cli.js --matcher semantic --ai-provider gemini --gemini-key your_key
+```
+
+**Features:**
+- LLM: Gemini Pro for reasoning
+- Embeddings: embedding-001
+- Dual-mode: LLM + embedding fallback
+- Cost: ~$0.10-$0.15 per analysis
+
+### Ollama Setup (Local)
+
+```bash
+# 1. Install Ollama (https://ollama.ai)
+# 2. Start Ollama server
+ollama serve
+
+# 3. Pull model (first time only)
+ollama pull llama3.2
+
+# 4. Run analysis
+node dist/cli.js --matcher semantic --ai-provider ollama
+
+# Custom model or URL
+node dist/cli.js --matcher semantic --ai-provider ollama \
+  --ollama-url http://localhost:11434 \
+  --ollama-model llama3.2
+```
+
+**Features:**
+- LLM: llama3.2 (default) or any Ollama model
+- Embeddings: nomic-embed-text
+- 100% local inference - no data leaves your machine
+- Free - no API costs
+- Privacy-focused
+
+**Available Models:**
+```bash
+# List installed models
+ollama list
+
+# Pull additional models
+ollama pull mistral
+ollama pull codellama
+```
+
+### No AI Provider
+
+Use keyword-based matching without AI:
+
+```bash
+node dist/cli.js --matcher semantic
+# or
+node dist/cli.js --matcher fuzzy
+```
 
 ## Performance Tuning
 

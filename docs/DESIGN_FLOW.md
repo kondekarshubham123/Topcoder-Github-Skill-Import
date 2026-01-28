@@ -97,7 +97,148 @@ flowchart TB
     style End fill:#c8e6c9
 ```
 
-## 3. Matcher Selection Decision Tree
+## 2. Complete Data Flow
+
+```mermaid
+flowchart TB
+    Start([User runs CLI]) --> Auth[GitHub OAuth<br/>Device Flow]
+    Auth --> SaveToken[Save token to<br/>.github-token]
+    
+    SaveToken --> FetchProfile[Fetch GitHub Profile]
+    FetchProfile --> FetchRepos[Fetch Repositories<br/>Paginated]
+    
+    FetchRepos --> ParallelRepo{For each repo}
+    ParallelRepo --> |Parallel| FetchLang[Fetch Languages]
+    ParallelRepo --> |Parallel| FetchCommits[Fetch Commits<br/>Max 100 per repo]
+    ParallelRepo --> |Parallel| FetchPRs[Fetch Pull Requests]
+    
+    FetchLang --> BuildProfile[Build GithubProfile]
+    FetchCommits --> BuildProfile
+    FetchPRs --> BuildProfile
+    
+    BuildProfile --> FetchSkills[Fetch All Topcoder Skills<br/>~10,000 skills]
+    FetchSkills --> BuildIndex[Build Skill Index<br/>Maps: byName, byLowerName, byKeyword]
+    
+    BuildIndex --> SelectMatcher{Select Matcher}
+    
+    SelectMatcher --> |language| LangMatch[Language Matcher]
+    SelectMatcher --> |repository| RepoMatch[Repository Matcher]
+    SelectMatcher --> |commit| CommitMatch[Commit Matcher]
+    SelectMatcher --> |pr| PRMatch[PR Matcher]
+    SelectMatcher --> |hybrid| HybridMatch[Hybrid Matcher<br/>Combines all]
+    SelectMatcher --> |all| AllMatch[All Matchers<br/>Sequential]
+    
+    LangMatch --> Aggregate[Aggregate Results]
+    RepoMatch --> Aggregate
+    CommitMatch --> Aggregate
+    PRMatch --> Aggregate
+    HybridMatch --> Aggregate
+    AllMatch --> Aggregate
+    
+    Aggregate --> Filter[Filter by<br/>Min Confidence]
+    Filter --> Sort[Sort by<br/>Confidence DESC]
+    Sort --> Limit[Limit to Top N]
+    
+    Limit --> FormatCheck{Output Format}
+    FormatCheck --> |text| TextFormat[Format as Text<br/>with colors]
+    FormatCheck --> |json| JSONFormat[Format as JSON]
+    
+    TextFormat --> Display[Display Results]
+    JSONFormat --> Display
+    
+    Display --> End([Done])
+    
+    style Start fill:#e1f5ff
+    style Auth fill:#fff4e1
+    style BuildProfile fill:#f0ffe1
+    style BuildIndex fill:#ffe1f5
+    style SelectMatcher fill:#ffeb99
+    style Display fill:#c8e6c9
+    style End fill:#c8e6c9
+```
+
+
+## 3. AI Provider Selection Flow
+
+```mermaid
+graph TD
+    Start([User runs CLI]) --> CheckFlag{--ai-provider<br/>specified?}
+    
+    CheckFlag --> |No| NoAI[No AI Provider<br/>Keyword Matching]
+    CheckFlag --> |Yes| Which{Which provider?}
+    
+    Which --> |openai| OpenAICheck{OPENAI_API_KEY<br/>exists?}
+    Which --> |gemini| GeminiCheck{GEMINI_API_KEY<br/>exists?}
+    Which --> |ollama| OllamaCheck{Ollama server<br/>available?}
+    
+    OpenAICheck --> |Yes| InitOpenAI[Initialize OpenAI Provider]
+    OpenAICheck --> |No| Error1[❌ Error: Missing API key]
+    
+    GeminiCheck --> |Yes| InitGemini[Initialize Gemini Provider]
+    GeminiCheck --> |No| Error2[❌ Error: Missing API key]
+    
+    OllamaCheck --> |Yes| InitOllama[Initialize Ollama Provider]
+    OllamaCheck --> |No| Warn[⚠️  Warning: Ollama not available<br/>Fall back to keyword matching]
+    
+    InitOpenAI --> ModeCheck{Provider supports<br/>LLM?}
+    InitGemini --> ModeCheck
+    InitOllama --> ModeCheck
+    Warn --> NoAI
+    
+    ModeCheck --> |Yes| LLMMode[🤖 LLM-Based Reasoning<br/>Primary Mode]
+    ModeCheck --> |Fallback| EmbedMode[📊 Embedding Similarity<br/>Fallback Mode]
+    
+    LLMMode --> OpenAILLM[OpenAI: GPT-4o-mini<br/>$0.15/1M tokens]
+    LLMMode --> GeminiLLM[Gemini: Gemini Pro<br/>$0.075/1M tokens]
+    LLMMode --> OllamaLLM[Ollama: llama3.2<br/>Free, local]
+    
+    EmbedMode --> OpenAIEmbed[OpenAI: text-embedding-3-small<br/>$0.02/1M tokens]
+    EmbedMode --> GeminiEmbed[Gemini: embedding-001<br/>Free]
+    EmbedMode --> OllamaEmbed[Ollama: nomic-embed-text<br/>Free, local]
+    
+    OpenAILLM --> Results[Skill Matches with Confidence]
+    GeminiLLM --> Results
+    OllamaLLM --> Results
+    OpenAIEmbed --> Results
+    GeminiEmbed --> Results
+    OllamaEmbed --> Results
+    NoAI --> Results
+    
+    Results --> Cache{Results cached?}
+    Cache --> |Yes| UseCache[Use Cached Results<br/>No API call]
+    Cache --> |No| SaveCache[Save to Cache<br/>For future use]
+    
+    UseCache --> Display[Display Results]
+    SaveCache --> Display
+    
+    style Start fill:#e1f5ff
+    style LLMMode fill:#c8e6c9
+    style EmbedMode fill:#fff4e1
+    style Results fill:#ffeb99
+    style Display fill:#c8e6c9
+    style Error1 fill:#ffcdd2
+    style Error2 fill:#ffcdd2
+    style Warn fill:#fff9c4
+```
+
+**Key Decision Points:**
+
+1. **Provider Selection** - User chooses OpenAI, Gemini, Ollama, or none
+2. **Credential Validation** - API keys checked for cloud providers
+3. **Availability Check** - Ollama server connectivity tested
+4. **Matching Mode** - LLM reasoning preferred over embeddings
+5. **Caching** - Results cached to minimize API costs
+
+**Matching Quality Hierarchy:**
+```
+🥇 LLM-Based Reasoning (OpenAI/Gemini/Ollama)
+   ↓ (if unavailable or rate limited)
+🥈 Embedding Similarity (Vector search)
+   ↓ (if provider unavailable)
+🥉 Keyword Matching (Basic text search)
+```
+
+## 4. Matcher Selection Decision Tree
 
 ```mermaid
 graph TD
@@ -117,7 +258,12 @@ graph TD
     Check --> |hybrid| UseHybrid[Hybrid Matcher<br/>✓ RECOMMENDED<br/>✓ Weighted combination<br/>✓ Best accuracy]
     
     Check --> |all| UseAll[All Matchers<br/>✓ Maximum coverage<br/>✓ Multiple perspectives<br/>✓ Longest runtime]
-    
+    Check --> |semantic| UseSemantic{AI Provider?}
+    UseSemantic --> |openai| UseOpenAI[OpenAI Provider<br/>GPT-4o-mini + Embeddings]
+    UseSemantic --> |gemini| UseGemini[Gemini Provider<br/>Gemini Pro + Embeddings]
+    UseSemantic --> |ollama| UseOllama[Ollama Provider<br/>llama3.2 Local LLM]
+    UseSemantic --> |none| UseKeyword[Keyword Matching<br/>No AI]
+
     Default --> Execute[Execute Matching]
     UseLang --> Execute
     UseRepo --> Execute
@@ -125,6 +271,9 @@ graph TD
     UsePR --> Execute
     UseHybrid --> Execute
     UseAll --> Execute
+    UseOpenAI --> Execute
+    UseOllama --> Execute
+    UseKeyword --> Execute
     
     Execute --> Return[Return SkillMatch Array]
     

@@ -1,3 +1,4 @@
+
 # Topcoder Skills Recommender 🎯
 
 A powerful CLI tool that analyzes GitHub user profiles and recommends matching skills from Topcoder's standardized skill database. Uses multiple sophisticated matching algorithms to provide evidence-based skill recommendations.
@@ -6,10 +7,13 @@ A powerful CLI tool that analyzes GitHub user profiles and recommends matching s
 
 - **Deep GitHub Analysis**: Analyzes repositories, commits, pull requests, languages, and topics
 - **Multiple Matching Algorithms**: Choose from 6+ specialized matchers or use hybrid mode for best accuracy
+- **AI-Powered Semantic Matching**: Use OpenAI, Google Gemini, or local Ollama for advanced skill detection
+- **GenAI Reasoning**: LLM-based analysis for nuanced skill understanding beyond keyword matching
 - **Evidence-Based Recommendations**: Every skill match includes verifiable evidence from your GitHub activity
 - **Confidence Scoring**: Intelligent scoring system (0-100%) based on contribution patterns and frequency
 - **Flexible CLI**: Extensive configuration options for customized analysis workflows
 - **Fast & Efficient**: Local skill matching with O(1) index lookups (~2-5 seconds per user)
+- **Privacy-Focused**: Optional local AI inference with Ollama (no data sent to cloud)
 - **Plug-and-Play Architecture**: Easy to add custom matching algorithms via simple interface
 - **Rich Documentation**: Comprehensive architecture diagrams, flow charts, and guides
 
@@ -56,6 +60,10 @@ Create a `.env` file with your GitHub OAuth credentials:
 ```env
 GITHUB_CLIENT_ID=your_client_id
 GITHUB_CLIENT_SECRET=your_client_secret
+
+# Optional: AI Provider API Keys
+OPENAI_API_KEY=sk-your-openai-key
+GEMINI_API_KEY=your-gemini-key
 ```
 
 **Getting OAuth Credentials:**
@@ -64,6 +72,11 @@ GITHUB_CLIENT_SECRET=your_client_secret
 3. Set Homepage URL: `http://localhost`
 4. Set Authorization callback URL: `http://localhost`
 5. Copy Client ID and Client Secret to `.env`
+
+**Getting AI Provider Keys (Optional):**
+- **OpenAI**: https://platform.openai.com/api-keys
+- **Gemini**: https://aistudio.google.com/app/apikey
+- **Ollama**: Local installation - https://ollama.ai
 
 ### First Run
 
@@ -93,6 +106,7 @@ npm start -- [options]
 | Matcher | Description | Best For | Speed |
 |---------|-------------|----------|-------|
 | **hybrid** (default) | Combines all matchers with weighted scoring | Most accurate, recommended | Medium |
+| **semantic** | AI-powered semantic analysis with embeddings | Nuanced skill detection, emerging tech | Medium (with AI) |
 | **language** | Matches based on programming languages | Developers with clear language focus | Fast |
 | **repository** | Analyzes repo names, descriptions, topics | Project-based analysis | Fast |
 | **commit** | Deep analysis of commit messages and files | Detailed code contribution patterns | Slow |
@@ -104,6 +118,30 @@ npm start -- [options]
 **Analyze with hybrid matcher:**
 ```bash
 npm start -- --matcher hybrid
+```
+
+**AI-powered semantic matching (OpenAI):**
+```bash
+npm start -- --matcher semantic --ai-provider openai
+```
+
+**Use Google Gemini for AI matching:**
+```bash
+npm start -- --matcher semantic --ai-provider gemini --gemini-key YOUR_KEY
+```
+
+**Local AI with Ollama (privacy-focused):**
+```bash
+# First, start Ollama server
+ollama serve
+
+# Then run analysis
+npm start -- --matcher semantic --ai-provider ollama
+```
+
+**Hybrid with AI (best accuracy):**
+```bash
+npm start -- --matcher hybrid --ai-provider openai
 ```
 
 **Language-only matching (fastest):**
@@ -145,7 +183,20 @@ npm start -- --verbose
 
 ```
 -m, --matcher <type>         Matcher algorithm (default: hybrid)
-                             Options: language, repository, commit, pr, hybrid, all
+                             Options: language, repository, commit, pr, semantic, hybrid, all
+
+--ai-provider <provider>     AI provider for semantic matching
+                             Options: openai, gemini, ollama
+
+--openai-key <key>           OpenAI API key (overrides OPENAI_API_KEY env)
+
+--gemini-key <key>           Google Gemini API key (overrides GEMINI_API_KEY env)
+
+--ollama-url <url>           Ollama base URL (default: http://localhost:11434)
+
+--ollama-model <model>       Ollama model name (default: llama3.2)
+
+--ollama-timeout <seconds>   Ollama timeout in seconds (default: 180)
 
 -r, --max-repos <number>     Maximum repositories to analyze (default: 50)
 
@@ -194,7 +245,7 @@ GitHub User
 Results with Evidence + Rationale
 ```
 
-**See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed Mermaid diagrams including:**
+**See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed Mermaid diagrams including:**
 - Complete data flow sequence diagrams
 - Component architecture graphs
 - Skill index structure visualization
@@ -210,7 +261,7 @@ Results with Evidence + Rationale
 - **Keyword match**: 60% confidence (skill keywords contain "javascript")
 - **Frequency boost**: +2% per repository (max +20%)
 - **Evidence**: Top 5 repositories using each language
-- See [DESIGN_FLOW.md](docs/DESIGN_FLOW.md) Section 4 for algorithm flowchart
+- See [DESIGN_FLOW.md](DESIGN_FLOW.md) Section 4 for algorithm flowchart
 
 **2. Repository Matcher** (Fast, Metadata-focused)
 - Analyzes repo names, descriptions, and topics
@@ -235,7 +286,19 @@ Results with Evidence + Rationale
 - **Evidence**: Pull requests with matching content
 - Ideal for open source contributors
 
-**5. Hybrid Matcher** (Recommended, Most Accurate)
+**5. Semantic Matcher** (AI-Powered, Context-Aware)
+- Uses AI embeddings or LLM reasoning for deep understanding
+- Supports OpenAI (GPT-4o-mini), Gemini (Gemini Pro), or Ollama (local)
+- **Two modes**:
+  - **LLM Reasoning** (Primary): AI analyzes profile and reasons about skills
+  - **Embedding Similarity** (Fallback): Vector similarity with cosine distance
+- **Confidence from AI**: Model provides confidence scores with reasoning
+- **Evidence**: AI-generated explanations of skill relevance
+- Best for emerging tech, cross-domain skills, and nuanced matches
+- Can run without AI using keyword-based fallback
+- See [docs/AI_PROVIDER_GUIDE.md](docs/AI_PROVIDER_GUIDE.md) for detailed guide
+
+**6. Hybrid Matcher** (Recommended, Most Accurate)
 - Runs all matchers in parallel using `Promise.all()`
 - Combines results with weighted scoring:
   - **Language**: 1.0 (most reliable)
@@ -245,7 +308,7 @@ Results with Evidence + Rationale
 - **Weighted confidence**: `Σ(confidence × weight) / Σ(weights_used)`
 - Merges evidence from all sources
 - Deduplicates and creates comprehensive rationale
-- See [DESIGN_FLOW.md](docs/DESIGN_FLOW.md) Section 5 for weighted calculation diagram
+- See [DESIGN_FLOW.md](DESIGN_FLOW.md) Section 5 for weighted calculation diagram
 
 **6. All Matchers** (Maximum Coverage)
 - Runs matchers sequentially (not parallel)
@@ -276,11 +339,11 @@ The system uses an in-memory index strategy for optimal performance:
 - `byKeyword`: Token-based search (e.g., "front", "web", "database")
 - `all`: Complete skill array for iteration
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) Section 2 for detailed index diagrams.
+See [ARCHITECTURE.md](ARCHITECTURE.md) Section 2 for detailed index diagrams.
 
 ### Adding Custom Matchers
 
-The system is **plug-and-play**. See [PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md) for step-by-step instructions.
+The system is **plug-and-play**. See [PLUGIN_GUIDE.md](PLUGIN_GUIDE.md) for step-by-step instructions.
 
 Quick example:
 
@@ -316,16 +379,24 @@ Done! No other changes needed.
 
 Comprehensive documentation with visual diagrams:
 
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Detailed system architecture
+- **[docs/AI_PROVIDER_GUIDE.md](docs/AI_PROVIDER_GUIDE.md)** - Complete AI provider integration guide
+  - OpenAI, Gemini, and Ollama setup
+  - LLM vs embedding-based matching
+  - Cost analysis and optimization
+  - Timeout configuration and troubleshooting
+  - Performance comparison and best practices
+  
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed system architecture
   - High-level architecture diagrams
   - Data flow sequence diagrams  
   - Component architecture graphs
+  - AI provider integration patterns
   - Skill index structure (byName, byLowerName, byKeyword maps)
   - Matcher interface specifications
   - Performance optimization strategies
   - Error handling flows
   
-- **[DESIGN_FLOW.md](docs/DESIGN_FLOW.md)** - Visual flows and decision trees
+- **[DESIGN_FLOW.md](DESIGN_FLOW.md)** - Visual flows and decision trees
   - Complete data flow from CLI to output
   - Matcher selection decision tree
   - Algorithm flowcharts (Language, Hybrid, etc.)
@@ -334,13 +405,13 @@ Comprehensive documentation with visual diagrams:
   - Rate limiting strategy
   - Memory & performance analysis
   
-- **[PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md)** - Step-by-step guide to add custom matchers
+- **[PLUGIN_GUIDE.md](PLUGIN_GUIDE.md)** - Step-by-step guide to add custom matchers
   
-- **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** - Command cheatsheet and quick reference
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Command cheatsheet and quick reference
   
-- **[CLI_USAGE.md](docs/CLI_USAGE.md)** - Comprehensive CLI documentation
+- **[CLI_USAGE.md](CLI_USAGE.md)** - Comprehensive CLI documentation
   
-- **[IMPLEMENTATION.md](docs/IMPLEMENTATION.md)** - Implementation details and code structure
+- **[IMPLEMENTATION.md](IMPLEMENTATION.md)** - Implementation details and code structure
 
 > **Note**: All Mermaid diagrams render correctly on GitHub and support rich visualizations.
 
@@ -422,11 +493,30 @@ Every skill recommendation includes verifiable evidence:
 - Reduce `--max-commits` (default 30)
 - Use `--matcher language` for fastest results
 
+**AI provider timeout (Ollama):**
+- Increase timeout: `--ollama-timeout 300` (5 minutes)
+- Use smaller model: `--ollama-model llama3.2:1b`
+- Reduce data: `--max-repos 10 --no-deep-analysis`
+- Check Ollama is running: `ollama list`
+
+**AI provider authentication failed:**
+- **OpenAI**: Verify key at https://platform.openai.com/api-keys
+- **Gemini**: Check key at https://aistudio.google.com/app/apikey
+- **Ollama**: Start server with `ollama serve`
+- Set in `.env` or use `--openai-key` / `--gemini-key` flags
+
+**High AI costs:**
+- Use `--matcher hybrid` instead of `semantic` (fewer AI calls)
+- Limit with `--max-skills 50`
+- Reduce repos: `--max-repos 20`
+- Use Ollama for free local inference
+- Cost analysis: ~$0.01-$0.20 per analysis with OpenAI
+
 ## 🤝 Contributing
 
 Contributions welcome! Here's how:
 
-1. **Add a new matcher**: See [PLUGIN_GUIDE.md](docs/PLUGIN_GUIDE.md) for step-by-step guide
+1. **Add a new matcher**: See [PLUGIN_GUIDE.md](PLUGIN_GUIDE.md) for step-by-step guide
 2. **Improve algorithms**: Submit PRs with enhanced confidence scoring formulas
 3. **Documentation**: Help improve docs, add examples, fix diagrams
 4. **Bug fixes**: Report issues or submit fixes via GitHub Issues
