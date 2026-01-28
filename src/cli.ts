@@ -10,7 +10,11 @@ import { RepositoryMatcher } from './matchers/RepositoryMatcher';
 import { CommitMatcher } from './matchers/CommitMatcher';
 import { PullRequestMatcher } from './matchers/PullRequestMatcher';
 import { HybridMatcher } from './matchers/HybridMatcher';
+import { SemanticMatcher } from './matchers/SemanticMatcher';
 import { ISkillsMatcher } from './matchers/ISkillsMatcher';
+import { OpenAIProvider } from './matchers/providers/OpenAIProvider';
+import { GeminiProvider } from './matchers/providers/GeminiProvider';
+import { OllamaProvider } from './matchers/providers/OllamaProvider';
 import * as fs from 'fs';
 
 // Setup CLI
@@ -26,6 +30,12 @@ program
   .option('-s, --max-skills <number>', 'Maximum skills to display', '15')
   .option('--no-deep-analysis', 'Skip deep commit/PR analysis')
   .option('--min-confidence <number>', 'Minimum confidence threshold (0-100)', '30')
+  .option('--ai-provider <provider>', 'AI provider: openai, gemini, ollama (requires semantic matcher)')
+  .option('--openai-key <key>', 'OpenAI API key (overrides env)')
+  .option('--gemini-key <key>', 'Google Gemini API key (overrides env)')
+  .option('--ollama-url <url>', 'Ollama base URL (default: http://localhost:11434)')
+  .option('--ollama-model <model>', 'Ollama model name (default: llama3.2)')
+  .option('--ollama-timeout <seconds>', 'Ollama timeout in seconds (default: 180)', '180')
   .option('-v, --verbose', 'Verbose logging')
   .option('-o, --output <format>', 'Output format: text, json', 'text')
   .option('--output-file <path>', 'Save results to file');
@@ -39,10 +49,39 @@ function validateOptions(options: any) {
   const errors: string[] = [];
 
   // validate matcher
-  const validMatchers = ['language', 'repository', 'commit', 'pr', 'hybrid', 'all'];
+  const validMatchers = ['language', 'repository', 'commit', 'pr', 'hybrid', 'semantic', 'all'];
   if (!validMatchers.includes(options.matcher.toLowerCase())) {
     errors.push(`Invalid matcher: ${options.matcher}. Valid options are: ${validMatchers.join(', ')}`);
   }
+
+  // Validate AI provider if specified
+  if (options.aiProvider) {
+    const validProviders = ['openai', 'gemini', 'ollama'];
+    if (!validProviders.includes(options.aiProvider.toLowerCase())) {
+      errors.push(`Invalid AI provider: ${options.aiProvider}. Must be one of: ${validProviders.join(', ')}`);
+    }
+    
+    // Check if semantic matcher is used with AI provider
+    if (options.matcher.toLowerCase() !== 'semantic' && options.matcher.toLowerCase() !== 'hybrid' && options.matcher.toLowerCase() !== 'all') {
+      errors.push('AI provider can only be used with semantic, hybrid, or all matchers');
+    }
+    
+    // Validate API keys for cloud providers
+    if (options.aiProvider.toLowerCase() === 'openai') {
+      const apiKey = options.openaiKey || process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        errors.push('OpenAI API key required: set OPENAI_API_KEY in .env or use --openai-key');
+      }
+    }
+
+    if (options.aiProvider.toLowerCase() === 'gemini') {
+      const apiKey = options.geminiKey || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        errors.push('Gemini API key required: set GEMINI_API_KEY in .env or use --gemini-key');
+      }
+    }
+  }
+
 
   // validate numeric options
   const maxRepos = parseInt(options.maxRepos);
@@ -99,8 +138,8 @@ async function main() {
     console.log(chalk.gray(`  • Max Commits: ${options.maxCommits}`));
     console.log(chalk.gray(`  • Max Skills: ${options.maxSkills}`));
     console.log(chalk.gray(`  • Deep Analysis: ${options.deepAnalysis}`));
-    console.log(chalk.gray(`  • AI Provider: ${options.aiProvider}`));
-    console.log(chalk.gray(`  • Min Confidence: ${options.minConfidence}%`));
+    console.log(chalk.gray(`  • AI Provider: ${options.aiProvider || 'none'}`));
+    console.log(chalk.gray(`  • Min Confidence: ${options.minConfidence}%\n`));
   }
 
   // Step 1: Github OAuth Device Flow
@@ -143,6 +182,45 @@ async function main() {
   
   let matcher: ISkillsMatcher;
   
+  // Initialize AI provider if specified
+  let aiProvider = null;
+  if (options.aiProvider) {
+    const providerName = options.aiProvider.toLowerCase();
+    
+    if (providerName === 'openai') {
+      const apiKey = options.openaiKey || process.env.OPENAI_API_KEY;
+      if (apiKey) {
+        aiProvider = new OpenAIProvider(apiKey);
+        console.log(chalk.cyan(`   🤖 AI Provider: ${aiProvider.name} (GPT-4o-mini + Embeddings)`));
+        console.log(chalk.gray(`   Mode: GenAI reasoning + semantic embeddings\n`));
+      }
+    } else if (providerName === 'gemini') {
+      const apiKey = options.geminiKey || process.env.GEMINI_API_KEY;
+      if (apiKey) {
+        aiProvider = new GeminiProvider(apiKey);
+        console.log(chalk.cyan(`   🤖 AI Provider: ${aiProvider.name} (Gemini Pro)`));
+        console.log(chalk.gray(`   Mode: GenAI reasoning + semantic embeddings\n`));
+      }
+    } else if (providerName === 'ollama') {
+      const baseUrl = options.ollamaUrl || 'http://localhost:11434';
+      const model = options.ollamaModel || 'llama3.2';
+      const timeout = parseInt(options.ollamaTimeout) * 1000 || 180000;
+      aiProvider = new OllamaProvider(baseUrl, model, timeout);
+      
+      // Check if Ollama is available
+      const available = await aiProvider.isAvailable();
+      if (available) {
+        console.log(chalk.cyan(`   🤖 AI Provider: ${aiProvider.name} (${model})`));
+        console.log(chalk.gray(`   Mode: Local GenAI reasoning (privacy-focused)\n`));
+      } else {
+        console.log(chalk.yellow(`   ⚠️  Ollama not available at ${baseUrl}`));
+        console.log(chalk.yellow(`   Start Ollama with: ollama serve`));
+        console.log(chalk.yellow(`   Falling back to keyword-based matching\n`));
+        aiProvider = null;
+      }
+    }
+  }
+
   switch (options.matcher.toLowerCase()) {
     case 'language':
       matcher = new LanguageMatcher();
@@ -156,25 +234,41 @@ async function main() {
     case 'pr':
       matcher = new PullRequestMatcher();
       break;
+    case 'semantic':
+      if (aiProvider) {
+        matcher = new SemanticMatcher(aiProvider);
+      } else {
+        console.log(chalk.yellow('   ⚠️  No AI provider specified, using keyword-based semantic matching'));
+        matcher = new SemanticMatcher();
+      }
+      break;
     case 'all':
-      matcher = new HybridMatcher([
+      const allMatchers = [
         new LanguageMatcher(),
         new RepositoryMatcher(),
         new CommitMatcher(),
         new PullRequestMatcher()
-      ]);
+      ];
+      if (aiProvider) {
+        allMatchers.push(new SemanticMatcher(aiProvider));
+      }
+      matcher = new HybridMatcher(allMatchers);
       break;
     case 'hybrid':
     default:
       // Use top 3 matchers for best balance of speed and accuracy
-      matcher = new HybridMatcher([
+      const hybridMatchers = [
         new LanguageMatcher(),
         new RepositoryMatcher(),
         new CommitMatcher()
-      ]);
+      ];
+      if (aiProvider) {
+        hybridMatchers.push(new SemanticMatcher(aiProvider));
+      }
+      matcher = new HybridMatcher(hybridMatchers);
       break;
   }
-  
+
   const allRecommendations = await matcher.match(profile, skillIndex);
   
   // Filter by confidence threshold

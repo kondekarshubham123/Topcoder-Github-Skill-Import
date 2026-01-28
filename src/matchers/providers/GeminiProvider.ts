@@ -1,19 +1,8 @@
 import axios from 'axios';
+import { ISemanticProvider } from './OpenAIProvider';
 
-// Enhanced interface supporting both embedding-based and LLM-based matching
-export interface ISemanticProvider {
-  name: string;
-  supportsLLM: boolean; // Whether provider supports direct LLM reasoning
-  
-  // Embedding-based similarity (0-1 range)
-  computeSimilarity(text1: string, text2: string): Promise<number>;
-  
-  // LLM-based skill matching (optional, more powerful)
-  matchSkillsWithLLM?(profileText: string, skills: Array<{ id: string; name: string; description?: string }>): Promise<Array<{ skillId: string; confidence: number; reasoning: string }>>;
-}
-
-export class OpenAIProvider implements ISemanticProvider {
-  name = 'OpenAI';
+export class GeminiProvider implements ISemanticProvider {
+  name = 'Google Gemini';
   supportsLLM = true;
   private apiKey: string;
   private cache: Map<string, number[]> = new Map();
@@ -23,7 +12,7 @@ export class OpenAIProvider implements ISemanticProvider {
     this.apiKey = apiKey;
   }
   
-  // LLM-based skill matching using GPT-4
+  // LLM-based skill matching using Gemini Pro
   async matchSkillsWithLLM(profileText: string, skills: Array<{ id: string; name: string; description?: string }>): Promise<Array<{ skillId: string; confidence: number; reasoning: string }>> {
     const cacheKey = `${profileText.substring(0, 100)}_${skills.length}`;
     if (this.llmCache.has(cacheKey)) {
@@ -52,26 +41,27 @@ Focus on skills with strong evidence. Minimum confidence: 40. Maximum: 15 skills
 
     try {
       const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${this.apiKey}`,
         {
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: 'You are a technical skill matching assistant. Always respond with valid JSON.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 2000
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 2000
+          }
         },
         {
           headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json'
           },
           timeout: 30000
         }
       );
       
-      const content = response.data.choices[0].message.content.trim();
+      const content = response.data.candidates[0].content.parts[0].text.trim();
       const jsonMatch = content.match(/\[[\s\S]*\]/);
       const matches = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
       
@@ -81,7 +71,7 @@ Focus on skills with strong evidence. Minimum confidence: 40. Maximum: 15 skills
           return skill ? {
             skillId: skill.id,
             confidence: Math.min(Math.max(m.confidence, 0), 100),
-            reasoning: m.reasoning || 'LLM analysis'
+            reasoning: m.reasoning || 'Gemini LLM analysis'
           } : null;
         })
         .filter((r: any) => r !== null);
@@ -89,33 +79,43 @@ Focus on skills with strong evidence. Minimum confidence: 40. Maximum: 15 skills
       this.llmCache.set(cacheKey, results);
       return results;
     } catch (error: any) {
-      console.error('OpenAI LLM matching error:', error.message);
+      console.error('Gemini LLM matching error:', error.message);
       return [];
     }
   }
   
+  // Embedding-based similarity using Gemini Embeddings
   private async getEmbedding(text: string): Promise<number[]> {
     if (this.cache.has(text)) {
       return this.cache.get(text)!;
     }
     
-    const response = await axios.post(
-      'https://api.openai.com/v1/embeddings',
-      {
-        model: 'text-embedding-3-small',
-        input: text
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+    try {
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=${this.apiKey}`,
+        {
+          content: {
+            parts: [{
+              text: text
+            }]
+          }
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000
         }
-      }
-    );
-    
-    const embedding = response.data.data[0].embedding;
-    this.cache.set(text, embedding);
-    return embedding;
+      );
+      
+      const embedding = response.data.embedding.values;
+      this.cache.set(text, embedding);
+      return embedding;
+    } catch (error: any) {
+      console.error('Gemini embedding error:', error.message);
+      // Fallback to LLM-based matching if embeddings fail
+      throw error;
+    }
   }
   
   private cosineSimilarity(a: number[], b: number[]): number {
@@ -126,10 +126,15 @@ Focus on skills with strong evidence. Minimum confidence: 40. Maximum: 15 skills
   }
   
   async computeSimilarity(text1: string, text2: string): Promise<number> {
-    const [emb1, emb2] = await Promise.all([
-      this.getEmbedding(text1),
-      this.getEmbedding(text2)
-    ]);
-    return this.cosineSimilarity(emb1, emb2);
+    try {
+      const [emb1, emb2] = await Promise.all([
+        this.getEmbedding(text1),
+        this.getEmbedding(text2)
+      ]);
+      return this.cosineSimilarity(emb1, emb2);
+    } catch (error) {
+      // If embeddings fail, return moderate similarity to allow LLM matching
+      return 0.5;
+    }
   }
 }
