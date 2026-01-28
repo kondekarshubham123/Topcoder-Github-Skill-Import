@@ -20,13 +20,13 @@ graph TB
     F --> G4[Pull Request Matcher]
     F --> G5[Hybrid Matcher]
     F --> G6[Semantic Matcher]
-
+    
     G6 --> AI{AI Provider?}
     AI --> AI1[OpenAI Provider<br/>GPT-4o + Embeddings]
     AI --> AI2[Gemini Provider<br/>Gemini Pro + Embeddings]
     AI --> AI3[Ollama Provider<br/>Local LLM]
-    AI --> AI4[No Provider<br/>Keywords Matching]    
-
+    AI --> AI4[No Provider<br/>Keyword Matching]
+    
     G1 --> H[Results Aggregator]
     G2 --> H
     G3 --> H
@@ -190,6 +190,33 @@ graph TB
 
 ### 3. Skill Index Structure
 
+```mermaid
+graph TD
+    A[SkillIndex] --> B["byName: Map&lt;string, Skill&gt;"]
+    A --> C["byLowerName: Map&lt;string, Skill array&gt;"]
+    A --> D["byKeyword: Map&lt;string, Skill array&gt;"]
+    A --> E["all: Skill array"]
+    
+    B --> B1["'React' → {id, name, desc}"]
+    C --> C1["'react' → array of skills"]
+    C --> C2["'javascript' → array of skills"]
+    D --> D1["'front' → React, Frontend, ..."]
+    D --> D2["'web' → React, Vue, ..."]
+    
+    style A fill:#ffeb99
+    style B fill:#99d6ff
+    style C fill:#99d6ff
+    style D fill:#99d6ff
+    style E fill:#99d6ff
+```
+
+**Index Building Process:**
+1. Exact name: `"React"` → Direct O(1) lookup
+2. Case-insensitive: `"react"` → Array of matches
+3. Keywords: Split skill name and description into words → Map word to skills
+4. Enables multi-strategy matching without repeated API calls
+
+### 3. Matcher Interface
 
 ```mermaid
 classDiagram
@@ -489,33 +516,62 @@ graph TD
 
 ```mermaid
 flowchart TD
-    A[Error Handling Strategy] --> B[Rate Limiting]
+    A[Error Handling Strategy]
+    A --> B[Rate Limiting]
     A --> C[Authentication Failures]
     A --> D[Network Errors]
     A --> E[Partial Data]
+    A --> F[AI Provider Errors]
     
-    B --> B1[GitHub: 403 Forbidden]
+    B --> B1[GitHub 403 Forbidden]
     B1 --> B2[Exponential Backoff]
     B2 --> B3[Retry up to 3 times]
     
     C --> C1[OAuth Token Expired]
-    C1 --> C2[Re-authenticate]
-    C2 --> C3[Save new token]
+    C1 --> C2[Re-authenticate User]
+    C2 --> C3[Save New Token]
     
     D --> D1[Topcoder API Down]
     D1 --> D2[Graceful Degradation]
-    D2 --> D3[Use cached skills if available]
+    D2 --> D3[Use Cached Skills]
     
-    E --> E1[Some repos fail]
-    E1 --> E2[Continue with available data]
-    E2 --> E3[Log warnings, not errors]
+    E --> E1[Some Repos Fail]
+    E1 --> E2[Continue with Available Data]
+    E2 --> E3[Log Warnings]
     
-    style A fill:#ff9999
-    style B fill:#ffcc99
-    style C fill:#ffff99
-    style D fill:#ccff99
-    style E fill:#99ffcc
+    F --> F1[OpenAI Invalid Key]
+    F --> F2[Gemini 404 Error]
+    F --> F3[Ollama Connection Refused]
+    F --> F4[Ollama Timeout]
+    
+    F1 --> F5[Verify API Key]
+    F2 --> F6[Check API Endpoint]
+    F3 --> F7[Start Ollama Server]
+    F4 --> F8[Increase Timeout or Use Smaller Model]
+    
+    F5 --> F9[Fallback to Keyword Matching]
+    F6 --> F9
+    F7 --> F9
+    F8 --> F9
 ```
+
+**Error Recovery Strategies:**
+
+| Error Type | Detection | Recovery | Fallback |
+|------------|-----------|----------|----------|
+| **Rate Limiting** | HTTP 403 | Exponential backoff, retry | Wait and continue |
+| **Auth Failure** | Invalid token | Re-authenticate | Request new OAuth |
+| **Network Error** | Connection timeout | Retry with timeout | Use cached data |
+| **Partial Data** | Some requests fail | Continue processing | Log warnings only |
+| **AI Provider** | Various | Provider-specific | Keyword matching |
+
+**AI Provider Error Handling:**
+
+- **OpenAI Invalid Key**: Verify key at platform.openai.com → Fallback to keyword matching
+- **Gemini 404**: Check API endpoint version → Fallback to keyword matching  
+- **Ollama Connection Refused**: Check `ollama serve` running → Fallback to keyword matching
+- **Ollama Timeout**: Increase timeout (`--ollama-timeout 300`), use smaller model (`llama3.2:1b`), or reduce data (`--max-repos 10`)
+
 
 ## Output Formats
 
@@ -617,6 +673,7 @@ npm start -- --username octocat --matcher all --top-n 20
 
 The architecture supports easy addition of new matchers - see [PLUGIN_GUIDE.md](PLUGIN_GUIDE.md) for step-by-step instructions.
 
+---
 
 ## AI Provider Deep Dive
 

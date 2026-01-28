@@ -39,64 +39,6 @@ flowchart LR
 - **📊 Evidence-Based**: Every skill includes verifiable GitHub links
 - **🔄 Flexible**: 6+ matching algorithms to choose from
 
-```mermaid
-flowchart TB
-    Start([User runs CLI]) --> Auth[GitHub OAuth<br/>Device Flow]
-    Auth --> SaveToken[Save token to<br/>.github-token]
-    
-    SaveToken --> FetchProfile[Fetch GitHub Profile]
-    FetchProfile --> FetchRepos[Fetch Repositories<br/>Paginated]
-    
-    FetchRepos --> ParallelRepo{For each repo}
-    ParallelRepo --> |Parallel| FetchLang[Fetch Languages]
-    ParallelRepo --> |Parallel| FetchCommits[Fetch Commits<br/>Max 100 per repo]
-    ParallelRepo --> |Parallel| FetchPRs[Fetch Pull Requests]
-    
-    FetchLang --> BuildProfile[Build GithubProfile]
-    FetchCommits --> BuildProfile
-    FetchPRs --> BuildProfile
-    
-    BuildProfile --> FetchSkills[Fetch All Topcoder Skills<br/>~10,000 skills]
-    FetchSkills --> BuildIndex[Build Skill Index<br/>Maps: byName, byLowerName, byKeyword]
-    
-    BuildIndex --> SelectMatcher{Select Matcher}
-    
-    SelectMatcher --> |language| LangMatch[Language Matcher]
-    SelectMatcher --> |repository| RepoMatch[Repository Matcher]
-    SelectMatcher --> |commit| CommitMatch[Commit Matcher]
-    SelectMatcher --> |pr| PRMatch[PR Matcher]
-    SelectMatcher --> |hybrid| HybridMatch[Hybrid Matcher<br/>Combines all]
-    SelectMatcher --> |all| AllMatch[All Matchers<br/>Sequential]
-    
-    LangMatch --> Aggregate[Aggregate Results]
-    RepoMatch --> Aggregate
-    CommitMatch --> Aggregate
-    PRMatch --> Aggregate
-    HybridMatch --> Aggregate
-    AllMatch --> Aggregate
-    
-    Aggregate --> Filter[Filter by<br/>Min Confidence]
-    Filter --> Sort[Sort by<br/>Confidence DESC]
-    Sort --> Limit[Limit to Top N]
-    
-    Limit --> FormatCheck{Output Format}
-    FormatCheck --> |text| TextFormat[Format as Text<br/>with colors]
-    FormatCheck --> |json| JSONFormat[Format as JSON]
-    
-    TextFormat --> Display[Display Results]
-    JSONFormat --> Display
-    
-    Display --> End([Done])
-    
-    style Start fill:#e1f5ff
-    style Auth fill:#fff4e1
-    style BuildProfile fill:#f0ffe1
-    style BuildIndex fill:#ffe1f5
-    style SelectMatcher fill:#ffeb99
-    style Display fill:#c8e6c9
-    style End fill:#c8e6c9
-```
-
 ## 2. Complete Data Flow
 
 ```mermaid
@@ -156,7 +98,6 @@ flowchart TB
     style Display fill:#c8e6c9
     style End fill:#c8e6c9
 ```
-
 
 ## 3. AI Provider Selection Flow
 
@@ -258,12 +199,13 @@ graph TD
     Check --> |hybrid| UseHybrid[Hybrid Matcher<br/>✓ RECOMMENDED<br/>✓ Weighted combination<br/>✓ Best accuracy]
     
     Check --> |all| UseAll[All Matchers<br/>✓ Maximum coverage<br/>✓ Multiple perspectives<br/>✓ Longest runtime]
+    
     Check --> |semantic| UseSemantic{AI Provider?}
     UseSemantic --> |openai| UseOpenAI[OpenAI Provider<br/>GPT-4o-mini + Embeddings]
     UseSemantic --> |gemini| UseGemini[Gemini Provider<br/>Gemini Pro + Embeddings]
     UseSemantic --> |ollama| UseOllama[Ollama Provider<br/>llama3.2 Local LLM]
     UseSemantic --> |none| UseKeyword[Keyword Matching<br/>No AI]
-
+    
     Default --> Execute[Execute Matching]
     UseLang --> Execute
     UseRepo --> Execute
@@ -272,6 +214,7 @@ graph TD
     UseHybrid --> Execute
     UseAll --> Execute
     UseOpenAI --> Execute
+    UseGemini --> Execute
     UseOllama --> Execute
     UseKeyword --> Execute
     
@@ -322,7 +265,7 @@ flowchart TD
     Add --> LoopLang
     
     LoopLang --> |Done| SortResults[Sort by confidence DESC]
-    SortResults --> Return([Return SkillMatch array])
+    SortResults --> Return([Return SkillMatch Array])
     
     style Start fill:#e1f5ff
     style Conf95 fill:#c8e6c9
@@ -367,7 +310,7 @@ flowchart TD
     
     LoopSkill --> |Done| SortMerged[Sort by weighted confidence]
     
-    SortMerged --> Return([Return SkillMatch array])
+    SortMerged --> Return([Return SkillMatch Array])
     
     style Start fill:#e1f5ff
     style RunParallel fill:#fff4e1
