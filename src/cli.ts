@@ -1,4 +1,3 @@
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
 import 'dotenv/config';
 import chalk from 'chalk';
 import open from 'open';
@@ -35,7 +34,62 @@ program.parse();
 
 const options = program.opts();
 
+// Input validation
+function validateOptions(options: any) {
+  const errors: string[] = [];
+
+  // validate matcher
+  const validMatchers = ['language', 'repository', 'commit', 'pr', 'hybrid', 'all'];
+  if (!validMatchers.includes(options.matcher.toLowerCase())) {
+    errors.push(`Invalid matcher: ${options.matcher}. Valid options are: ${validMatchers.join(', ')}`);
+  }
+
+  // validate numeric options
+  const maxRepos = parseInt(options.maxRepos);
+  if (isNaN(maxRepos) || maxRepos < 1 || maxRepos > 1000) {
+    errors.push('Invalid max-repos. Must be a number between 1 and 1000.');
+  }
+
+  const maxCommits = parseInt(options.maxCommits);
+  if (isNaN(maxCommits) || maxCommits < 1 || maxCommits > 500) {
+    errors.push('Invalid max-commits. Must be a number between 1 and 500.');
+  }
+
+  const maxSkills = parseInt(options.maxSkills);
+  if (isNaN(maxSkills) || maxSkills < 1 || maxSkills > 100) {
+    errors.push('Invalid max-skills. Must be a number between 1 and 100.');
+  }
+
+  const minConfidence = parseInt(options.minConfidence);
+  if (isNaN(minConfidence) || minConfidence < 0 || minConfidence > 100) {
+    errors.push('Invalid min-confidence. Must be a number between 0 and 100.');
+  }
+
+  // validate output format
+  const validOutputs = ['text', 'json'];
+  if (!validOutputs.includes(options.output.toLowerCase())) {
+    errors.push(`Invalid output format: ${options.output}. Valid options are: ${validOutputs.join(', ')}`);
+  }
+
+  // validate output file path if specified
+  if (options.outputFile) {
+    const path = require('path');
+    const sanitizedPath = path.normalize(options.outputFile).replace(/^(\.\.[/\\]?)+/, '');
+    if (sanitizedPath !== options.outputFile) {
+      errors.push('Invalid output file path. Path contains invalid characters or directory traversal.');
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Validation errors:\n- ${errors.join('\n- ')}`);
+  }
+}
+
 async function main() {
+  try {
+    // Validate options
+    validateOptions(options);
+  
   console.log(chalk.green.bold('🚀 Topcoder Skills Recommender CLI\n'));
   
   if (options.verbose) {
@@ -140,6 +194,16 @@ async function main() {
   }
   
   console.log(chalk.green.bold('✨ Analysis complete!\n'));
+  } catch (err: any) {
+    console.error(chalk.red('\n Error during analysis:'));
+    if (options.verbose) {
+      console.error(chalk.red(err.stack || err.message || err));
+    } else {
+      console.error(chalk.red(err.message || err));
+      console.error(chalk.gray('Run with --verbose for more details.'));
+    }
+    throw err;
+  }
 }
 
 function outputText(recommendations: any[], verbose: boolean, outputFile?: string) {

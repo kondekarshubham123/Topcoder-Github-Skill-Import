@@ -25,23 +25,43 @@ export async function fetchAllSkills(): Promise<TopcoderSkill[]> {
       params: { 
         page: 1,
         perPage: 10000 // Get all skills in one call
+      },
+      timeout: 30000, // 30 seconds timeout
+      headers: {
+        'Accept': 'application/json'
       }
     });
     
+    // Validate response
+    if (!resp.data || !Array.isArray(resp.data)) {
+      throw new Error('Invalid response from Topcoder skills API: expected an array of skills');
+    }
+
     const skills = resp.data;
     console.log(chalk.green(`   ✓ Loaded ${skills.length} skills from Topcoder`));
     
     return skills;
   } catch (err: any) {
-    console.error(chalk.red('   ✗ Failed to fetch Topcoder skills:'), err.message);
+    if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+      console.error(chalk.red('   ✗ Request to Topcoder skills API timed out. Please check your network connection and try again.'));
+    } else if (err.response) {
+      console.error(chalk.red(`   ✗ Topcoder skills API returned error ${err.response.status}: ${err.response.statusText}`));
+    } else {
+      console.error(chalk.red(`   ✗ Error fetching Topcoder skills: ${err.message || err}`));
+    }
     throw err;
   }
 }
+
 
 /**
  * Build a searchable index for fast skill matching
  */
 export function buildSkillIndex(skills: TopcoderSkill[]) {
+  // Validate input
+  if (!skills || !Array.isArray(skills) || skills.length === 0) {
+    throw new Error('Invalid skills input: expected an array of non-empty TopcoderSkill array');
+  }
   const index = {
     byName: new Map<string, TopcoderSkill>(),
     byLowerName: new Map<string, TopcoderSkill[]>(),

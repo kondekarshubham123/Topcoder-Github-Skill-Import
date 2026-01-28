@@ -3,10 +3,21 @@ import axios from 'axios';
 import open from 'open';
 import ora from 'ora';
 
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
-const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
-console.log('GITHUB_CLIENT_ID:', GITHUB_CLIENT_ID);
-console.log('GITHUB_CLIENT_SECRET:', GITHUB_CLIENT_SECRET ? '[set]' : '[missing]');
+// Validate required environment variables
+if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+  throw new Error(
+    'Missing required environment variables: GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET must be set in .env file. ' +
+    'Visit https://github.com/settings/developers to create a GitHub OAuth App.'
+  );
+}
+
+const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
+
+if (process.env.VERBOSE) {
+  console.log('GITHUB_CLIENT_ID:', GITHUB_CLIENT_ID);
+  console.log('GITHUB_CLIENT_SECRET:', '[configured]');
+}
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_DEVICE_CODE_URL = 'https://github.com/login/device/code';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
@@ -27,13 +38,22 @@ let currentRateLimit: RateLimitInfo = { limit: 5000, remaining: 5000, reset: Dat
 
 export async function getDeviceCode(): Promise<{ device_code: string; user_code: string; verification_uri: string; expires_in: number; interval: number; }> {
 	try {
+		// Validate client ID before making request
+		if (!GITHUB_CLIENT_ID || GITHUB_CLIENT_ID.trim().length === 0) {
+			throw new Error('GITHUB_CLIENT_ID is not configured');
+		}
+		
 		const resp = await axios.post(
 			GITHUB_DEVICE_CODE_URL,
 			new URLSearchParams({
-				client_id: String(GITHUB_CLIENT_ID),
+				client_id: GITHUB_CLIENT_ID,
 				scope: 'repo read:user user:email',
 			}),
-			{ headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, validateStatus: () => true }
+			{ 
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				timeout: 10000,
+				validateStatus: () => true 
+			}
 		);
 		console.log('Github device code raw response:', resp.status, resp.data);
 		if (resp.status !== 200) {
@@ -41,11 +61,19 @@ export async function getDeviceCode(): Promise<{ device_code: string; user_code:
 		}
 		// Parse URL-encoded response
 		const params = new URLSearchParams(resp.data);
+		const device_code = params.get('device_code');
+		const user_code = params.get('user_code');
+		const verification_uri = params.get('verification_uri');
+		
+		if (!device_code || !user_code || !verification_uri) {
+			throw new Error('Invalid response from GitHub: missing required parameters');
+		}
+		
 		return {
-			device_code: params.get('device_code') || '',
-			user_code: params.get('user_code') || '',
-			verification_uri: params.get('verification_uri') || '',
-			expires_in: Number(params.get('expires_in') || 0),
+			device_code,
+			user_code,
+			verification_uri,
+			expires_in: Number(params.get('expires_in') || 900),
 			interval: Number(params.get('interval') || 5),
 		};
 	} catch (err: any) {
@@ -59,19 +87,33 @@ export async function getDeviceCode(): Promise<{ device_code: string; user_code:
 }
 
 export async function pollForToken(device_code: string, interval: number): Promise<GithubAuth> {
+	if (!device_code || device_code.trim().length === 0) {
+		throw new Error('Invalid device_code provided');
+	}
+	
 	const spinner = ora('Waiting for Github authorization...').start();
-	while (true) {
+	const maxAttempts = 60; // 5 minutes with 5-second intervals
+	let attempts = 0;
+	
+	while (attempts < maxAttempts) {
+		attempts++;
 		await new Promise(res => setTimeout(res, interval * 1000));
 		try {
 			const resp = await axios.post(
 				GITHUB_TOKEN_URL,
 				new URLSearchParams({
-					client_id: String(GITHUB_CLIENT_ID),
-					device_code: String(device_code),
+					client_id: GITHUB_CLIENT_ID,
+					device_code: device_code,
 					grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-					client_secret: String(GITHUB_CLIENT_SECRET),
+					client_secret: GITHUB_CLIENT_SECRET,
 				}),
-				{ headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' } }
+				{ 
+					headers: { 
+						'Content-Type': 'application/x-www-form-urlencoded', 
+						'Accept': 'application/json' 
+					},
+					timeout: 10000
+				}
 			);
 			if (resp.data.access_token) {
 				spinner.succeed('Github authorization successful!');
@@ -82,10 +124,17 @@ export async function pollForToken(device_code: string, interval: number): Promi
 				throw new Error(resp.data.error);
 			}
 		} catch (err: any) {
+			if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+				spinner.warn('Request timeout, retrying...');
+				continue;
+			}
 			spinner.fail('Error during token polling: ' + err.message);
 			throw err;
 		}
 	}
+	
+	spinner.fail('Authorization timeout: Please try again');
+	throw new Error('GitHub authorization timed out after 5 minutes');
 }
 
 

@@ -11,12 +11,27 @@ export class LanguageMatcher implements ISkillsMatcher {
   description = 'Matches programming languages from repositories to skills';
 
   async match(profile: GithubProfile, skillIndex: SkillIndex): Promise<SkillMatch[]> {
+    // Input Validation
+    if (!profile || !profile.languages ) {
+      throw new Error('Invalid profile: missing languages data');
+    }
+    if (!skillIndex || !skillIndex.byLowerName || !skillIndex.byKeyword) {
+      throw new Error('Invalid skill index: missing required indexes');
+    }
     console.log(chalk.gray(`   [${this.name}] Analyzing ${profile.languages.size} languages...`));
     
     const matches: SkillMatch[] = [];
     
     for (const [language, repoCount] of profile.languages.entries()) {
-      const languageNormalized = language.toLowerCase();
+      // Sanitize language input
+      if (typeof language !== 'string' || language.trim().length === 0) {
+        continue;
+      }
+      if(typeof repoCount !== 'number' || repoCount <= 0) {
+        continue;
+      }
+
+      const languageNormalized = language.trim().toLowerCase().substring(0, 100);
       
       // Try exact match first
       let matchedSkills = skillIndex.byLowerName.get(languageNormalized) || [];
