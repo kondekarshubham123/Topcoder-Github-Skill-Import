@@ -17,8 +17,6 @@ import { GeminiProvider } from './matchers/providers/GeminiProvider';
 import { OllamaProvider } from './matchers/providers/OllamaProvider';
 import { saveToken, loadToken, clearToken, hasValidToken } from './tokenStore';
 import * as fs from 'fs';
-import * as readline from 'readline';
-import { op } from '@tensorflow/tfjs';
 
 
 // Setup CLI
