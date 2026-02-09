@@ -213,7 +213,8 @@ npm start -- --verbose
 -o, --output <format>        Output format: text or json (default: text)
 
 --output-file <path>         Save results to file
-
+--force-login                Force new github login (ignore stored token)
+--logout                     Clear stored Github token and exit
 -h, --help                   Show help
 ```
 

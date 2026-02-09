@@ -137,6 +137,21 @@ export async function pollForToken(device_code: string, interval: number): Promi
 	throw new Error('GitHub authorization timed out after 5 minutes');
 }
 
+export async function verifyToken(token: string): Promise<boolean> {
+  try {
+    const resp = await axios.get(`${GITHUB_API}/user`, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      },
+	  timeout: 5000,
+      validateStatus: () => true
+    });
+    return resp.status === 200;
+  } catch (err) {
+    return false;
+  }
+}
 
 async function checkRateLimit(token: string): Promise<void> {
 	if (currentRateLimit.remaining < 10) {
