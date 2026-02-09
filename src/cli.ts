@@ -2,7 +2,7 @@ import 'dotenv/config';
 import chalk from 'chalk';
 import open from 'open';
 import { Command } from 'commander';
-import { getDeviceCode, pollForToken, getAuthenticatedUser } from './github';
+import { getDeviceCode, pollForToken, getAuthenticatedUser, verifyToken } from './github';
 import { fetchAllSkills, buildSkillIndex } from './topcoder';
 import { ProfileAnalyzer } from './ProfileAnalyzer';
 import { LanguageMatcher } from './matchers/LanguageMatcher';
@@ -15,7 +15,9 @@ import { ISkillsMatcher } from './matchers/ISkillsMatcher';
 import { OpenAIProvider } from './matchers/providers/OpenAIProvider';
 import { GeminiProvider } from './matchers/providers/GeminiProvider';
 import { OllamaProvider } from './matchers/providers/OllamaProvider';
+import { saveToken, loadToken, clearToken, hasValidToken } from './tokenStore';
 import * as fs from 'fs';
+
 
 // Setup CLI
 const program = new Command();
@@ -38,7 +40,9 @@ program
   .option('--ollama-timeout <seconds>', 'Ollama timeout in seconds (default: 180)', '180')
   .option('-v, --verbose', 'Verbose logging')
   .option('-o, --output <format>', 'Output format: text, json', 'text')
-  .option('--output-file <path>', 'Save results to file');
+  .option('--output-file <path>', 'Save results to file')
+  .option('--force-login', 'Force new Github login (ignore stored token)')
+  .option('--logout', 'Clear stored Github token and exit');
 
 program.parse();
 
@@ -126,11 +130,20 @@ function validateOptions(options: any) {
 
 async function main() {
   try {
+    if (options.logout) {
+      console.log(chalk.cyan('Logging out and clearing stored token...'));
+      clearToken();
+      console.log(chalk.green('✅ Logged out successfully'));
+      return;
+    }
+
     // Validate options
     validateOptions(options);
   
   console.log(chalk.green.bold('🚀 Topcoder Skills Recommender CLI\n'));
-  
+
+
+
   if (options.verbose) {
     console.log(chalk.gray('Configuration:'));
     console.log(chalk.gray(`  • Matcher: ${options.matcher}`));
@@ -140,18 +153,68 @@ async function main() {
     console.log(chalk.gray(`  • Deep Analysis: ${options.deepAnalysis}`));
     console.log(chalk.gray(`  • AI Provider: ${options.aiProvider || 'none'}`));
     console.log(chalk.gray(`  • Min Confidence: ${options.minConfidence}%\n`));
+    console.log(chalk.gray(`  • Force Login: ${options.forceLogin || false}`));
   }
 
-  // Step 1: Github OAuth Device Flow
-  console.log(chalk.cyan('Step 1: Authenticating with Github...'));
-  const { device_code, user_code, verification_uri, interval } = await getDeviceCode();
-  console.log(chalk.yellow(`\n📱 Visit: ${verification_uri}`));
-  console.log(chalk.yellow(`🔑 Enter code: ${user_code}\n`));
-  await open(verification_uri);
 
-  const auth = await pollForToken(device_code, interval);
-  const user = await getAuthenticatedUser(auth.access_token);
-  console.log(chalk.green(`✅ Authenticated as: ${(user as any).login}\n`));
+  // Step 1: Github Authentication (with token persistence)
+  console.log(chalk.cyan('Step 1: Authenticating with Github...'));
+
+  let token: string | null = null;
+
+  // Try to load existing token unless --force-login is used
+  if(!options.forceLogin) {
+    const storedToken = loadToken();
+    if (storedToken) {
+      console.log(chalk.cyan('Found stored Github token...'));
+      const isValid = await verifyToken(storedToken.access_token);
+      if (isValid) {
+        console.log(chalk.green('✅ Using stored token\n'));
+        token = storedToken.access_token;
+      } else {
+        console.log(chalk.yellow('⚠️  Stored token is invalid'));
+        clearToken();
+      }
+    } 
+  } else {
+    console.log(chalk.grey('--force-login specified, ignoring stored token'));
+    clearToken();
+  }
+
+  // If no valid token, initiate login flow
+  if (!token) {
+    console.log(chalk.cyan(' Starting Github OAuth device flow...'));
+    const { device_code, user_code, verification_uri, interval } = await getDeviceCode();
+    console.log(chalk.yellow(`\n📱 Visit: ${verification_uri}`));
+    console.log(chalk.yellow(`🔑 Enter code: ${user_code}\n`));
+    await open(verification_uri);
+    const auth = await pollForToken(device_code, interval);
+    
+    if (options.verbose) {
+      console.log(chalk.gray(`Debug: Auth response keys: ${Object.keys(auth).join(', ')}`));
+      console.log(chalk.gray(`Debug: Auth object: ${JSON.stringify(auth)}`));
+    }
+    
+    token = auth.access_token;
+
+    // Save token to disk for future use
+    console.log(chalk.blue('💾 Saving token for future use...'));
+    try {
+      console.log(chalk.gray(`   Directory: ~/.topcoder-skills/`));
+      console.log(chalk.gray(`   File: github-token.json`));
+      saveToken(auth);
+      console.log(chalk.green('   ✅ Token saved successfully'));
+    } catch (err) {
+      console.error(chalk.red('   ❌ Failed to save token'));
+      console.warn(chalk.yellow('⚠️  Warning: Could not save token locally for future use'));
+      console.warn(chalk.yellow('   You will need to authenticate again on next run'));
+      if (options.verbose) {
+        console.warn(chalk.gray((err as Error).message));
+      }
+    }
+  }
+  const user = await getAuthenticatedUser(token);
+  console.log(chalk.green(`✅ Authenticated as ${(user as any).login}\n`));
 
   // Step 2: Fetch Topcoder Skills (ONLY API CALL NEEDED)
   console.log(chalk.cyan('Step 2: Loading Topcoder skills database...'));
@@ -168,7 +231,7 @@ async function main() {
     verbose: options.verbose
   });
   
-  const { profile, stats } = await analyzer.analyzeProfile(auth.access_token, user);
+  const { profile, stats } = await analyzer.analyzeProfile(token, user);
   
   console.log(chalk.gray('\n📊 Analysis Summary:'));
   console.log(chalk.gray(`   • Repositories scanned: ${stats.reposScanned}`));
