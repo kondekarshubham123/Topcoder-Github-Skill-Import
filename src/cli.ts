@@ -31,6 +31,7 @@ program
   .option('-c, --max-commits <number>', 'Maximum commits per repo', '30')
   .option('-s, --max-skills <number>', 'Maximum skills to display', '15')
   .option('--no-deep-analysis', 'Skip deep commit/PR analysis')
+  .option('--include-forks', 'Include forked repositories in analysis')
   .option('--min-confidence <number>', 'Minimum confidence threshold (0-100)', '30')
   .option('--ai-provider <provider>', 'AI provider: openai, gemini, ollama (requires semantic matcher)')
   .option('--openai-key <key>', 'OpenAI API key (overrides env)')
@@ -151,6 +152,7 @@ async function main() {
     console.log(chalk.gray(`  • Max Commits: ${options.maxCommits}`));
     console.log(chalk.gray(`  • Max Skills: ${options.maxSkills}`));
     console.log(chalk.gray(`  • Deep Analysis: ${options.deepAnalysis}`));
+    console.log(chalk.gray(`  • Include Forks: ${options.includeForks || false}`));
     console.log(chalk.gray(`  • AI Provider: ${options.aiProvider || 'none'}`));
     console.log(chalk.gray(`  • Min Confidence: ${options.minConfidence}%\n`));
     console.log(chalk.gray(`  • Force Login: ${options.forceLogin || false}`));
@@ -228,6 +230,7 @@ async function main() {
     maxRepos: parseInt(options.maxRepos),
     maxCommitsPerRepo: parseInt(options.maxCommits),
     deepAnalysis: options.deepAnalysis,
+    includeForks: options.includeForks || false,
     verbose: options.verbose
   });
   
@@ -235,6 +238,9 @@ async function main() {
   
   console.log(chalk.gray('\n📊 Analysis Summary:'));
   console.log(chalk.gray(`   • Repositories scanned: ${stats.reposScanned}`));
+  if(stats.reposFiltered > 0) {
+    console.log(chalk.gray(`   • Repositories filtered out: ${stats.reposFiltered}`));
+  }
   console.log(chalk.gray(`   • Commits analyzed: ${stats.commitsAnalyzed}`));
   console.log(chalk.gray(`   • Pull requests analyzed: ${stats.pullRequestsAnalyzed}`));
   console.log(chalk.gray(`   • API calls made: ${stats.apiCallsMade}`));
@@ -348,6 +354,11 @@ async function main() {
     outputJSON(profile, stats, topRecommendations, options.outputFile);
   } else {
     outputText(topRecommendations, options.verbose, options.outputFile);
+  }
+
+  // Show fork filtering tip if forks were excluded
+  if(!options.includeForks && stats.reposFiltered > 0) {
+    console.log(chalk.gray(`\nTip: Use --include-forks to include forked repositories in the analysis (filtered out ${stats.reposFiltered} repos)`));
   }
   
   console.log(chalk.green.bold('✨ Analysis complete!\n'));

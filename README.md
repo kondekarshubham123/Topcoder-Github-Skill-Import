@@ -205,7 +205,7 @@ npm start -- --verbose
 -s, --max-skills <number>    Maximum skills to display (default: 15)
 
 --no-deep-analysis           Skip commit/PR analysis (faster)
-
+--include-forks              Include forked repositories in analysis
 --min-confidence <number>    Filter results by confidence 0-100 (default: 30)
 
 -v, --verbose                Show detailed logging

@@ -188,16 +188,32 @@ export async function getAuthenticatedUser(token: string) {
 }
 
 // Fetch all repos for the authenticated user (owned and contributed)
-export async function getUserRepos(token: string, per_page = 100) {
+export async function getUserRepos(token: string, per_page = 100, includeForks = false) {
 	// This fetches all repos the user has access to (owned, member, etc.)
 	let page = 1;
 	let repos: any[] = [];
 	while (true) {
-		const batch = await githubRequest<any[]>(GITHUB_API + '/user/repos', token, { per_page, page });
+		const batch = await githubRequest<any[]>(GITHUB_API + '/user/repos', token, { 
+			per_page, 
+			page,
+			sort: 'updated',
+			affiliation: 'owner,collaborator,organization_member' 
+		});
 		repos = repos.concat(batch);
 		if (batch.length < per_page) break;
 		page++;
 	}
+
+	if(!includeForks) {
+		const originalCount = repos.length;
+		repos = repos.filter(repo => !repo.fork);
+		const filteredCount = originalCount - repos.length;
+
+		if (filteredCount > 0) {
+			console.log(`Filtered out ${filteredCount} forked repositories`);
+		}
+	}
+
 	return repos;
 }
 
