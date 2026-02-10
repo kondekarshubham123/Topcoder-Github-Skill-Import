@@ -4,6 +4,7 @@ import open from 'open';
 import { Command } from 'commander';
 import { getDeviceCode, pollForToken, getAuthenticatedUser, verifyToken } from './github';
 import { fetchAllSkills, buildSkillIndex } from './topcoder';
+import { saveSkillsCache, loadSkillsCache, clearSkillsCache, hasValidCache, getCacheInfo } from './skillsCache';
 import { ProfileAnalyzer } from './ProfileAnalyzer';
 import { LanguageMatcher } from './matchers/LanguageMatcher';
 import { RepositoryMatcher } from './matchers/RepositoryMatcher';
@@ -43,7 +44,8 @@ program
   .option('-o, --output <format>', 'Output format: text, json', 'text')
   .option('--output-file <path>', 'Save results to file')
   .option('--force-login', 'Force new Github login (ignore stored token)')
-  .option('--logout', 'Clear stored Github token and exit');
+  .option('--logout', 'Clear stored Github token and exit')
+  .option('--refresh-skills', 'Refresh Topcoder skills cache (force API fetch)');
 
 program.parse();
 
@@ -156,6 +158,7 @@ async function main() {
     console.log(chalk.gray(`  • AI Provider: ${options.aiProvider || 'none'}`));
     console.log(chalk.gray(`  • Min Confidence: ${options.minConfidence}%\n`));
     console.log(chalk.gray(`  • Force Login: ${options.forceLogin || false}`));
+    console.log(chalk.gray(`  • Refresh Skills: ${options.refreshSkills || false}`));
   }
 
 
@@ -218,9 +221,43 @@ async function main() {
   const user = await getAuthenticatedUser(token);
   console.log(chalk.green(`✅ Authenticated as ${(user as any).login}\n`));
 
-  // Step 2: Fetch Topcoder Skills (ONLY API CALL NEEDED)
+  // Step 2: Fetch Topcoder Skills (With caching)
   console.log(chalk.cyan('Step 2: Loading Topcoder skills database...'));
-  const skills = await fetchAllSkills();
+  // const skills = await fetchAllSkills();
+
+  let skills: any[];
+
+  // Clear cache if --refresh-skills is specified
+  if (options.refreshSkills) {
+    console.log(chalk.cyan('   --refresh-skills specified, clearing cache and fetching fresh data...'));
+    clearSkillsCache();
+  }
+
+  // Try to load from cache
+  const cacheSkills = loadSkillsCache();
+
+  if(cacheSkills && !options.refreshSkills) {
+    console.log(chalk.green(`✅ Loaded ${cacheSkills.length} skills from cache (${getCacheInfo()})\n`));
+    skills = cacheSkills;
+    const cacheInfo = getCacheInfo();
+    console.log(chalk.green(` Loaded ${skills.length} skills from cache`));
+    console.log(chalk.gray(` Cache age: ${cacheInfo.age || 'unknown'}`));
+    console.log(chalk.gray(`  Use --refresh-skills to force refresh from API\n`));
+  } else {
+    if(!cacheSkills && !options.refreshSkills) { 
+      console.log(chalk.yellow('⚠️  No valid cache found, fetching skills from API...'));
+    }
+    console.log(chalk.cyan('   Fetching skills from Topcoder API...'));
+
+    skills = await fetchAllSkills();
+    console.log(chalk.green(`✅ Fetched ${skills.length} skills from API\n`));
+
+    saveSkillsCache(skills);
+    console.log(chalk.green(`✅ Skills cache updated with ${skills.length} skills`));
+  }
+
+
+
   const skillIndex = buildSkillIndex(skills);
   console.log(chalk.green(`✅ Loaded ${skills.length} standardized skills\n`));
 

@@ -206,6 +206,7 @@ npm start -- --verbose
 
 --no-deep-analysis           Skip commit/PR analysis (faster)
 --include-forks              Include forked repositories in analysis
+--refresh-skills             Refresh Topcoder skills cache (force API fetch)
 --min-confidence <number>    Filter results by confidence 0-100 (default: 30)
 
 -v, --verbose                Show detailed logging
