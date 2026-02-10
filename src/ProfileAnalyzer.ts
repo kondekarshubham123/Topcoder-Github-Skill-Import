@@ -5,6 +5,7 @@ import * as github from './github';
 
 export interface AnalysisStats {
   reposScanned: number;
+  reposFiltered: number;
   commitsAnalyzed: number;
   pullRequestsAnalyzed: number;
   apiCallsMade: number;
@@ -16,6 +17,7 @@ export interface AnalysisOptions {
   maxCommitsPerRepo?: number;
   deepAnalysis?: boolean;
   verbose?: boolean;
+  includeForks?: boolean;
 }
 
 export class ProfileAnalyzer {
@@ -27,7 +29,8 @@ export class ProfileAnalyzer {
       maxRepos: options.maxRepos || 50,
       maxCommitsPerRepo: options.maxCommitsPerRepo || 30,
       deepAnalysis: options.deepAnalysis !== false,
-      verbose: options.verbose || false
+      verbose: options.verbose || false,
+      includeForks: options.includeForks || false
     };
   }
   
@@ -42,14 +45,24 @@ export class ProfileAnalyzer {
     const spinner = ora('Analyzing Github profile...').start();
     
     try {
-      // Fetch repositories
+      // Fetch repositories (exlucding forks if option is set)
       spinner.text = 'Fetching repositories...';
       this.log('Fetching user repositories...');
-      const allRepos = await github.getUserRepos(token);
+      const allRepos = await github.getUserRepos(token, 100, this.options.includeForks);
       this.apiCalls++;
       
+      const totalRepos = allRepos.length;
       const repos = allRepos.slice(0, this.options.maxRepos);
-      this.log(`Limiting analysis to ${repos.length} of ${allRepos.length} repositories`);
+      
+      const repoFiltered = totalRepos - repos.length;
+
+      if (this.options.verbose) {
+        this.log(`Total repositories found: ${totalRepos}`);
+        this.log(`Repositories filtered out: ${repoFiltered}`);
+        this.log(`Forked repositories included: ${this.options.includeForks ? 'Yes' : 'No'}`);
+        this.log(`Repositories to analyze: ${repos.length}`);
+      }
+
       
       spinner.text = `Analyzing ${repos.length} repositories...`;
       
@@ -99,6 +112,7 @@ export class ProfileAnalyzer {
       
       const stats: AnalysisStats = {
         reposScanned: repos.length,
+        reposFiltered: repoFiltered,
         commitsAnalyzed: allCommits.length,
         pullRequestsAnalyzed: allPRs.length,
         apiCallsMade: this.apiCalls,
